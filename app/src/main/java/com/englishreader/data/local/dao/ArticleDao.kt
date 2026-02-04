@@ -40,6 +40,9 @@ interface ArticleDao {
     
     @Update
     suspend fun updateArticle(article: ArticleEntity)
+
+    @Query("DELETE FROM articles WHERE id = :id")
+    suspend fun deleteArticleById(id: String)
     
     @Query("UPDATE articles SET isRead = :isRead, lastReadAt = :lastReadAt WHERE id = :id")
     suspend fun updateReadStatus(id: String, isRead: Boolean, lastReadAt: Long)

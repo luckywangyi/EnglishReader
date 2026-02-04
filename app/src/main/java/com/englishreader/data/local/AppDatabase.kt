@@ -1,6 +1,5 @@
 package com.englishreader.data.local
 
-import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.englishreader.data.local.dao.ArticleDao
@@ -19,11 +18,8 @@ import com.englishreader.data.local.entity.VocabularyEntity
         ReadingStatsEntity::class,
         SentenceEntity::class
     ],
-    version = 2,
-    exportSchema = true,
-    autoMigrations = [
-        AutoMigration(from = 1, to = 2)
-    ]
+    version = 1,
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao

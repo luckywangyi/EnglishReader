@@ -30,4 +30,14 @@
     <string name="saved_to_vocabulary">已保存到生词本</string>
     <string name="saved_to_sentences">已保存到句子摘抄</string>
     <string name="export_notes">导出笔记</string>
+    <string name="home_recommendation_title">今日推荐</string>
+    <string name="home_more_articles">更多文章</string>
+    <string name="home_swap_one">换一篇</string>
+    <string name="home_start_reading">开始阅读</string>
+    <string name="home_no_recommendation">暂无推荐</string>
+    <string name="home_refresh_to_get">刷新获取</string>
+    <string name="home_filter_title">筛选</string>
+    <string name="home_filter_clear">清除</string>
+    <string name="home_filter_done">完成</string>
+    <string name="home_unread">未读</string>
 </resources>

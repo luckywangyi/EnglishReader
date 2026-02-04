@@ -58,6 +58,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -68,6 +69,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.englishreader.R
+import android.widget.Toast
 import com.englishreader.domain.model.Article
 import com.englishreader.ui.components.DifficultyBadge
 import kotlinx.coroutines.launch
@@ -87,8 +90,11 @@ fun ReaderScreen(
     val translationState by viewModel.translationState.collectAsState()
     val showSummary by viewModel.showSummary.collectAsState()
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
+    val isFetchingFullContent by viewModel.isFetchingFullContent.collectAsState()
+    val fullContentFetchResult by viewModel.fullContentFetchResult.collectAsState()
     
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     
@@ -105,6 +111,14 @@ fun ReaderScreen(
     LaunchedEffect(readProgress) {
         if (readProgress > 0.1f) {
             viewModel.updateReadProgress(readProgress)
+        }
+    }
+    
+    LaunchedEffect(fullContentFetchResult) {
+        if (fullContentFetchResult == com.englishreader.data.repository.FullContentFetchResult.TOO_SHORT) {
+            Toast.makeText(context, "该内容过短，已过滤", Toast.LENGTH_SHORT).show()
+            viewModel.clearFullContentFetchResult()
+            onBack()
         }
     }
     
@@ -218,6 +232,27 @@ fun ReaderScreen(
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
+                
+                if (isFetchingFullContent) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.loading),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     ) { padding ->

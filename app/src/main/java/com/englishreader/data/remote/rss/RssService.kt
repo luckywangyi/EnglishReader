@@ -15,7 +15,8 @@ import javax.inject.Singleton
 
 @Singleton
 class RssService @Inject constructor(
-    private val rssParser: RssParser
+    private val rssParser: RssParser,
+    private val htmlParser: HtmlParser
 ) {
     
     suspend fun fetchArticles(source: RssSource): Result<List<ArticleEntity>> {
@@ -57,8 +58,14 @@ class RssService @Inject constructor(
             val publishedAt = parseDate(item.pubDate) ?: now
             
             // Get description and content
-            val description = item.description?.let { cleanHtml(it) }
-            val content = item.content ?: description ?: ""
+            val description = item.description?.let { htmlParser.cleanHtml(it) }
+            val rawContent = item.content ?: item.description ?: ""
+            val content = if (rawContent.isNotBlank()) htmlParser.cleanHtml(rawContent) else ""
+            
+            // Filter media items (video/audio/podcast)
+            if (isMediaItem(title, description, link)) {
+                return@mapNotNull null
+            }
             
             // Calculate word count
             val wordCount = content.split(Regex("\\s+")).size
@@ -109,23 +116,30 @@ class RssService @Inject constructor(
         return null
     }
     
-    private fun cleanHtml(html: String): String {
-        return html
-            .replace(Regex("<[^>]*>"), "")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .trim()
-    }
-    
     private fun extractImageFromContent(content: String?): String? {
         if (content == null) return null
         
         val imgRegex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']")
         val match = imgRegex.find(content)
         return match?.groupValues?.getOrNull(1)
+    }
+    
+    private fun isMediaItem(title: String, description: String?, link: String): Boolean {
+        val text = "${title} ${description.orEmpty()} ${link}".lowercase()
+        val mediaKeywords = listOf(
+            "video",
+            "watch",
+            "podcast",
+            "audio",
+            "listen",
+            "live",
+            "clip",
+            "trailer",
+            "/av/",
+            "/video",
+            "/videos"
+        )
+        
+        return mediaKeywords.any { text.contains(it) }
     }
 }

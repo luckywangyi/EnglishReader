@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.safety.Safelist
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,13 +55,19 @@ class HtmlParser @Inject constructor() {
             // Remove unwanted elements
             doc.select("script, style, nav, header, footer, aside, .ad, .advertisement, .social-share").remove()
             
-            // Get text content
-            val text = doc.body()?.text() ?: ""
+            val paragraphs = doc.select("p")
+                .map { it.text().trim() }
+                .filter { it.length > 20 }
             
-            // Clean up whitespace
-            text.replace(Regex("\\s+"), " ").trim()
+            val text = if (paragraphs.isNotEmpty()) {
+                paragraphs.joinToString("\n\n")
+            } else {
+                doc.body()?.text()?.trim() ?: ""
+            }
+            
+            stripReadMore(text)
         } catch (e: Exception) {
-            html.replace(Regex("<[^>]*>"), "").trim()
+            Jsoup.parse(html).text().trim()
         }
     }
     
@@ -110,12 +117,12 @@ class HtmlParser @Inject constructor() {
                 // Extract paragraphs
                 val paragraphs = element.select("p")
                 if (paragraphs.isNotEmpty()) {
-                    return paragraphs.joinToString("\n\n") { it.text().trim() }
+                    return stripReadMore(paragraphs.joinToString("\n\n") { it.text().trim() })
                 }
                 
                 // Fallback to element text
                 val text = element.text().trim()
-                if (text.length > 200) return text
+                if (text.length > 200) return stripReadMore(text)
             }
         }
         
@@ -125,9 +132,9 @@ class HtmlParser @Inject constructor() {
             .filter { it.length > 50 }
         
         return if (paragraphs.isNotEmpty()) {
-            paragraphs.joinToString("\n\n")
+            stripReadMore(paragraphs.joinToString("\n\n"))
         } else {
-            doc.body()?.text()?.trim() ?: ""
+            stripReadMore(doc.body()?.text()?.trim() ?: "")
         }
     }
     
@@ -196,6 +203,28 @@ class HtmlParser @Inject constructor() {
         }
         
         return null
+    }
+    
+    private fun stripReadMore(text: String): String {
+        if (text.isBlank()) return text
+        
+        val blocks = text.split(Regex("\\n\\s*\\n"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        
+        val filtered = blocks.filterNot { block ->
+            val lower = block.lowercase(Locale.getDefault())
+            (lower.contains("continue reading") ||
+                lower.contains("read more") ||
+                lower.contains("continue on medium") ||
+                lower.contains("continue reading on medium") ||
+                lower.contains("keep reading") ||
+                lower.contains("read the full") ||
+                lower.contains("full story") ||
+                (lower.contains("medium") && block.length < 120))
+        }
+        
+        return filtered.joinToString("\n\n").trim()
     }
     
     /**

@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.englishreader.data.repository.ArticleRepository
+import com.englishreader.data.repository.FullContentFetchResult
 import com.englishreader.data.repository.SentenceRepository
 import com.englishreader.data.repository.SettingsRepository
 import com.englishreader.data.repository.TranslationRepository
@@ -45,11 +46,18 @@ class ReaderViewModel @Inject constructor(
     
     private val _isAnalyzing = MutableStateFlow(false)
     val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
+
+    private val _isFetchingFullContent = MutableStateFlow(false)
+    val isFetchingFullContent: StateFlow<Boolean> = _isFetchingFullContent.asStateFlow()
+
+    private val _fullContentFetchResult = MutableStateFlow<FullContentFetchResult?>(null)
+    val fullContentFetchResult: StateFlow<FullContentFetchResult?> = _fullContentFetchResult.asStateFlow()
     
     private var readingStartTime: Long = 0
     
     init {
         markAsReading()
+        fetchFullContentIfNeeded()
     }
     
     private fun markAsReading() {
@@ -57,6 +65,19 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             articleRepository.updateReadStatus(articleId, true)
         }
+    }
+
+    private fun fetchFullContentIfNeeded() {
+        if (articleId.isBlank()) return
+        viewModelScope.launch {
+            _isFetchingFullContent.value = true
+            _fullContentFetchResult.value = articleRepository.fetchFullContentIfNeeded(articleId)
+            _isFetchingFullContent.value = false
+        }
+    }
+
+    fun clearFullContentFetchResult() {
+        _fullContentFetchResult.value = null
     }
     
     fun updateReadProgress(progress: Float) {

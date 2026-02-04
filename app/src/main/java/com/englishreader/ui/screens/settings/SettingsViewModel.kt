@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.englishreader.data.remote.gemini.GeminiService
 import com.englishreader.data.repository.SettingsRepository
+import com.englishreader.worker.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val geminiService: GeminiService
+    private val geminiService: GeminiService,
+    private val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
     
     val apiKey: StateFlow<String> = settingsRepository.geminiApiKey
@@ -30,6 +32,15 @@ class SettingsViewModel @Inject constructor(
     
     val readingFontSize: StateFlow<Int> = settingsRepository.readingFontSize
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 18)
+    
+    val reminderEnabled: StateFlow<Boolean> = settingsRepository.reminderEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    
+    val morningReminderHour: StateFlow<Int> = settingsRepository.morningReminderHour
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10)
+    
+    val eveningReminderHour: StateFlow<Int> = settingsRepository.eveningReminderHour
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 21)
     
     private val _saveState = MutableStateFlow<SaveState>(SaveState.Idle)
     val saveState: StateFlow<SaveState> = _saveState.asStateFlow()
@@ -87,6 +98,39 @@ class SettingsViewModel @Inject constructor(
     fun setReadingFontSize(size: Int) {
         viewModelScope.launch {
             settingsRepository.setReadingFontSize(size)
+        }
+    }
+    
+    fun setReminderEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setReminderEnabled(enabled)
+            if (enabled) {
+                val morningHour = settingsRepository.getMorningReminderHour()
+                val eveningHour = settingsRepository.getEveningReminderHour()
+                reminderScheduler.scheduleReminders(morningHour, eveningHour)
+            } else {
+                reminderScheduler.cancelAllReminders()
+            }
+        }
+    }
+    
+    fun setMorningReminderHour(hour: Int) {
+        viewModelScope.launch {
+            settingsRepository.setMorningReminderHour(hour)
+            if (settingsRepository.isReminderEnabled()) {
+                val eveningHour = settingsRepository.getEveningReminderHour()
+                reminderScheduler.scheduleReminders(hour, eveningHour)
+            }
+        }
+    }
+    
+    fun setEveningReminderHour(hour: Int) {
+        viewModelScope.launch {
+            settingsRepository.setEveningReminderHour(hour)
+            if (settingsRepository.isReminderEnabled()) {
+                val morningHour = settingsRepository.getMorningReminderHour()
+                reminderScheduler.scheduleReminders(morningHour, hour)
+            }
         }
     }
 }

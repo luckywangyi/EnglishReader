@@ -17,6 +17,9 @@ import com.englishreader.data.repository.SentenceRepository
 import com.englishreader.data.repository.SettingsRepository
 import com.englishreader.data.repository.TranslationRepository
 import com.englishreader.data.repository.VocabularyRepository
+import com.englishreader.domain.service.RecommendationService
+import com.englishreader.notification.NotificationHelper
+import com.englishreader.worker.ReminderScheduler
 import com.prof18.rssparser.RssParser
 import dagger.Module
 import dagger.Provides
@@ -45,14 +48,14 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideRssParser(okHttpClient: OkHttpClient): RssParser {
-        return RssParser(okHttpClient)
+    fun provideRssParser(): RssParser {
+        return RssParser()
     }
 
     @Provides
     @Singleton
-    fun provideRssService(rssParser: RssParser): RssService {
-        return RssService(rssParser)
+    fun provideRssService(rssParser: RssParser, htmlParser: com.englishreader.data.remote.rss.HtmlParser): RssService {
+        return RssService(rssParser, htmlParser)
     }
 
     @Provides
@@ -106,9 +109,10 @@ object AppModule {
     fun provideArticleRepository(
         rssService: RssService,
         articleDao: ArticleDao,
-        geminiService: GeminiService
+        geminiService: GeminiService,
+        htmlParser: com.englishreader.data.remote.rss.HtmlParser
     ): ArticleRepository {
-        return ArticleRepository(rssService, articleDao, geminiService)
+        return ArticleRepository(rssService, articleDao, geminiService, htmlParser)
     }
 
     @Provides
@@ -140,5 +144,30 @@ object AppModule {
         sentenceDao: SentenceDao
     ): SentenceRepository {
         return SentenceRepository(sentenceDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideRecommendationService(
+        articleDao: ArticleDao,
+        settingsRepository: SettingsRepository
+    ): RecommendationService {
+        return RecommendationService(articleDao, settingsRepository)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationHelper(
+        @ApplicationContext context: Context
+    ): NotificationHelper {
+        return NotificationHelper(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideReminderScheduler(
+        @ApplicationContext context: Context
+    ): ReminderScheduler {
+        return ReminderScheduler(context)
     }
 }

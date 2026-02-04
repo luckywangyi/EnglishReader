@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -64,6 +65,9 @@ fun SettingsScreen(
     val readingFontSize by viewModel.readingFontSize.collectAsState()
     val saveState by viewModel.saveState.collectAsState()
     val testState by viewModel.testState.collectAsState()
+    val reminderEnabled by viewModel.reminderEnabled.collectAsState()
+    val morningHour by viewModel.morningReminderHour.collectAsState()
+    val eveningHour by viewModel.eveningReminderHour.collectAsState()
     
     var editedApiKey by remember(apiKey) { mutableStateOf(apiKey) }
     var showApiKey by remember { mutableStateOf(false) }
@@ -367,6 +371,105 @@ fun SettingsScreen(
                         ),
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                }
+            }
+            
+            HorizontalDivider()
+            
+            // Reading Reminder Settings
+            Text(
+                text = "阅读提醒",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Reminder switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "每日阅读提醒",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Text(
+                                    text = if (reminderEnabled) "已开启" else "已关闭",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        
+                        Switch(
+                            checked = reminderEnabled,
+                            onCheckedChange = { viewModel.setReminderEnabled(it) }
+                        )
+                    }
+                    
+                    if (reminderEnabled) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Morning reminder time
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "早间推荐时间",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "${morningHour}:00",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // Evening reminder time
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "晚间提醒时间",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "${eveningHour}:00",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "每天 ${morningHour}:00 推送今日推荐文章，${eveningHour}:00 检查阅读情况",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             

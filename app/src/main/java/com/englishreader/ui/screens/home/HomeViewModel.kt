@@ -7,6 +7,7 @@ import com.englishreader.data.repository.ArticleRepository
 import com.englishreader.domain.model.Article
 import com.englishreader.domain.model.Category
 import com.englishreader.domain.model.RssSource
+import com.englishreader.domain.service.RecommendationService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,8 +20,16 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val articleRepository: ArticleRepository
+    private val articleRepository: ArticleRepository,
+    private val recommendationService: RecommendationService
 ) : ViewModel() {
+    
+    // 今日推荐文章
+    private val _recommendedArticle = MutableStateFlow<Article?>(null)
+    val recommendedArticle: StateFlow<Article?> = _recommendedArticle.asStateFlow()
+    
+    private val _isLoadingRecommendation = MutableStateFlow(false)
+    val isLoadingRecommendation: StateFlow<Boolean> = _isLoadingRecommendation.asStateFlow()
     
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -68,6 +77,23 @@ class HomeViewModel @Inject constructor(
     
     init {
         refreshArticles()
+        loadRecommendation()
+    }
+    
+    private fun loadRecommendation() {
+        viewModelScope.launch {
+            _isLoadingRecommendation.value = true
+            _recommendedArticle.value = recommendationService.getTodayRecommendation()
+            _isLoadingRecommendation.value = false
+        }
+    }
+    
+    fun refreshRecommendation() {
+        viewModelScope.launch {
+            _isLoadingRecommendation.value = true
+            _recommendedArticle.value = recommendationService.refreshRecommendation()
+            _isLoadingRecommendation.value = false
+        }
     }
     
     fun refreshArticles() {

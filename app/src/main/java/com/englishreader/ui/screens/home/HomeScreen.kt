@@ -18,10 +18,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,13 +35,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,11 +54,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.englishreader.R
 import com.englishreader.domain.model.Article
 import com.englishreader.domain.model.Category
 import com.englishreader.domain.model.DifficultyLevel
@@ -73,9 +81,12 @@ fun HomeScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedDifficulty by viewModel.selectedDifficulty.collectAsState()
     val showOnlyUnread by viewModel.showOnlyUnread.collectAsState()
+    val recommendedArticle by viewModel.recommendedArticle.collectAsState()
+    val isLoadingRecommendation by viewModel.isLoadingRecommendation.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
-    var showFilters by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     LaunchedEffect(error) {
         error?.let {
@@ -87,60 +98,224 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("English Reader") },
+                title = { Text(stringResource(R.string.app_name)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
                 actions = {
-                    IconButton(onClick = { showFilters = !showFilters }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Filter")
+                    IconButton(onClick = { showFilterSheet = true }) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = stringResource(R.string.home_filter_title)
+                        )
                     }
                     IconButton(onClick = { viewModel.refreshArticles() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.refresh)
+                        )
                     }
                 }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Filter chips
-            if (showFilters) {
-                FilterSection(
-                    categories = viewModel.categories,
-                    selectedCategory = selectedCategory,
-                    onCategorySelected = { viewModel.selectCategory(it) },
-                    selectedDifficulty = selectedDifficulty,
-                    onDifficultySelected = { viewModel.selectDifficulty(it) },
-                    showOnlyUnread = showOnlyUnread,
-                    onUnreadToggle = { viewModel.toggleUnreadOnly() },
-                    onClearFilters = { viewModel.clearFilters() }
-                )
+            if (articles.isEmpty() && recommendedArticle == null && !isRefreshing) {
+                EmptyState()
+            } else if (isRefreshing && articles.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item(key = "recommendation") {
+                        RecommendationHeroCard(
+                            article = recommendedArticle,
+                            isLoading = isLoadingRecommendation,
+                            onArticleClick = { recommendedArticle?.let { onArticleClick(it.id) } },
+                            onRefreshClick = { viewModel.refreshRecommendation() }
+                        )
+                    }
+                    
+                    if (articles.isNotEmpty()) {
+                        item(key = "more_articles_header") {
+                            SectionHeader(title = stringResource(R.string.home_more_articles))
+                        }
+                    }
+                    
+                    val filteredArticles = articles.filter { it.id != recommendedArticle?.id }
+                    items(filteredArticles, key = { it.id }) { article ->
+                        CompactArticleItem(
+                            article = article,
+                            onClick = { onArticleClick(article.id) },
+                            onFavoriteClick = { viewModel.toggleFavorite(article) }
+                        )
+                    }
+                }
             }
             
-            // Article list
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = { viewModel.refreshArticles() },
-                modifier = Modifier.fillMaxSize()
+            if (showFilterSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showFilterSheet = false },
+                    sheetState = filterSheetState
+                ) {
+                    FilterSection(
+                        categories = viewModel.categories,
+                        selectedCategory = selectedCategory,
+                        onCategorySelected = { viewModel.selectCategory(it) },
+                        selectedDifficulty = selectedDifficulty,
+                        onDifficultySelected = { viewModel.selectDifficulty(it) },
+                        showOnlyUnread = showOnlyUnread,
+                        onUnreadToggle = { viewModel.toggleUnreadOnly() },
+                        onClearFilters = { viewModel.clearFilters() },
+                        onDismiss = { showFilterSheet = false }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationHeroCard(
+    article: Article?,
+    isLoading: Boolean,
+    onArticleClick: () -> Unit,
+    onRefreshClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (articles.isEmpty() && !isRefreshing) {
-                    EmptyState()
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(articles, key = { it.id }) { article ->
-                            ArticleCard(
-                                article = article,
-                                onClick = { onArticleClick(article.id) },
-                                onFavoriteClick = { viewModel.toggleFavorite(article) }
-                            )
+                Text(
+                    text = stringResource(R.string.home_recommendation_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                TextButton(onClick = onRefreshClick, enabled = !isLoading) {
+                    Icon(
+                        Icons.Default.Shuffle,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.home_swap_one))
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (article != null) {
+                article.imageUrl?.let { imageUrl ->
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                
+                Text(
+                    text = article.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                article.description?.let { desc ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = article.sourceName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    article.difficultyLevel?.let { level ->
+                        DifficultyBadge(level = level)
+                    }
+                    Text(
+                        text = "${article.wordCount} 词",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onArticleClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.home_start_reading))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.home_no_recommendation),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(onClick = onRefreshClick) {
+                            Text(stringResource(R.string.home_refresh_to_get))
                         }
                     }
                 }
@@ -158,13 +333,21 @@ private fun FilterSection(
     onDifficultySelected: (Int?) -> Unit,
     showOnlyUnread: Boolean,
     onUnreadToggle: () -> Unit,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    onDismiss: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        Text(
+            text = stringResource(R.string.home_filter_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
         // Category filters
         Row(
             modifier = Modifier
@@ -210,14 +393,41 @@ private fun FilterSection(
             FilterChip(
                 selected = showOnlyUnread,
                 onClick = onUnreadToggle,
-                label = { Text("未读") }
+                label = { Text(stringResource(R.string.home_unread)) }
             )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onClearFilters) {
+                Text(stringResource(R.string.home_filter_clear))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.home_filter_done))
+            }
         }
     }
 }
 
 @Composable
-private fun ArticleCard(
+private fun SectionHeader(
+    title: String
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+private fun CompactArticleItem(
     article: Article,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit
@@ -226,35 +436,46 @@ private fun ArticleCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column {
-            // Image if available
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             article.imageUrl?.let { imageUrl ->
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = null,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(MaterialTheme.shapes.medium),
+                        .size(88.dp)
+                        .clip(MaterialTheme.shapes.small),
                     contentScale = ContentScale.Crop
                 )
             }
             
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Source and date row
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = article.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (article.isRead) FontWeight.Normal else FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = article.sourceName,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    
                     Text(
                         text = formatDate(article.publishedAt),
                         style = MaterialTheme.typography.labelSmall,
@@ -262,22 +483,6 @@ private fun ArticleCard(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Title
-                Text(
-                    text = article.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (article.isRead) FontWeight.Normal else FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (article.isRead) 
-                        MaterialTheme.colorScheme.onSurfaceVariant 
-                    else 
-                        MaterialTheme.colorScheme.onSurface
-                )
-                
-                // Description
                 article.description?.let { desc ->
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -288,58 +493,23 @@ private fun ArticleCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Bottom row: badges and favorite
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Difficulty badge
-                        article.difficultyLevel?.let { level ->
-                            DifficultyBadge(level = level)
-                        }
-                        
-                        // Word count
-                        Text(
-                            text = "${article.wordCount} 词",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        
-                        // Reading progress
-                        if (article.readProgress > 0f && article.readProgress < 1f) {
-                            Text(
-                                text = "${(article.readProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    
-                    IconButton(
-                        onClick = onFavoriteClick,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (article.isFavorite) 
-                                Icons.Filled.Favorite 
-                            else 
-                                Icons.Outlined.FavoriteBorder,
-                            contentDescription = "Favorite",
-                            tint = if (article.isFavorite) 
-                                MaterialTheme.colorScheme.error 
-                            else 
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            }
+            
+            IconButton(
+                onClick = onFavoriteClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = if (article.isFavorite) 
+                        Icons.Filled.Favorite 
+                    else 
+                        Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Favorite",
+                    tint = if (article.isFavorite) 
+                        MaterialTheme.colorScheme.error 
+                    else 
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -355,7 +525,7 @@ private fun EmptyState() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "暂无文章",
+                text = stringResource(R.string.no_articles),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
