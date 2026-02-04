@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">English Reader</string>
+    <string name="home">首页</string>
+    <string name="vocabulary">词汇本</string>
+    <string name="stats">统计</string>
+    <string name="settings">设置</string>
+    <string name="reading">阅读</string>
+    <string name="all_sources">全部来源</string>
+    <string name="all_levels">全部难度</string>
+    <string name="refresh">刷新</string>
+    <string name="no_articles">暂无文章</string>
+    <string name="loading">加载中...</string>
+    <string name="error_loading">加载失败</string>
+    <string name="retry">重试</string>
+    <string name="save_word">保存单词</string>
+    <string name="translate">翻译</string>
+    <string name="api_key_hint">请输入 Gemini API Key</string>
+    <string name="api_key_guide">如何获取免费 API Key</string>
+    <string name="dark_mode">夜间模式</string>
+    <string name="font_size">字体大小</string>
+    <string name="words_read">已读单词</string>
+    <string name="articles_read">已读文章</string>
+    <string name="streak_days">连续天数</string>
+    <string name="saved_words">收藏词汇</string>
+</resources>
