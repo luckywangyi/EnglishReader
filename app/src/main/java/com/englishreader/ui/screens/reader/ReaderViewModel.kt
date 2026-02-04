@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.englishreader.data.repository.ArticleRepository
+import com.englishreader.data.repository.SentenceRepository
 import com.englishreader.data.repository.SettingsRepository
 import com.englishreader.data.repository.TranslationRepository
 import com.englishreader.data.repository.TranslationResult
@@ -24,6 +25,7 @@ class ReaderViewModel @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val translationRepository: TranslationRepository,
     private val vocabularyRepository: VocabularyRepository,
+    private val sentenceRepository: SentenceRepository,
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
     
@@ -99,9 +101,29 @@ class ReaderViewModel @Inject constructor(
             )
             
             if (saved) {
-                _translationState.value = TranslationState.Saved
+                _translationState.value = TranslationState.SavedWord
             }
         }
+    }
+    
+    fun saveSentence(sentence: String, translation: String?) {
+        viewModelScope.launch {
+            val currentArticle = article.value
+            val saved = sentenceRepository.saveSentence(
+                content = sentence,
+                translation = translation,
+                articleId = currentArticle?.id,
+                articleTitle = currentArticle?.title
+            )
+            
+            if (saved) {
+                _translationState.value = TranslationState.SavedSentence
+            }
+        }
+    }
+    
+    fun isMultipleWords(text: String): Boolean {
+        return text.trim().split(Regex("\\s+")).size > 1
     }
     
     fun clearTranslation() {
@@ -166,5 +188,6 @@ sealed class TranslationState {
         val isFromDict: Boolean
     ) : TranslationState()
     data class Error(val message: String) : TranslationState()
-    data object Saved : TranslationState()
+    data object SavedWord : TranslationState()
+    data object SavedSentence : TranslationState()
 }

@@ -121,7 +121,8 @@ fun ReaderScreen(
             is TranslationState.Success -> {
                 scope.launch { bottomSheetState.expand() }
             }
-            is TranslationState.Saved -> {
+            is TranslationState.SavedWord,
+            is TranslationState.SavedSentence -> {
                 scope.launch { 
                     kotlinx.coroutines.delay(1000)
                     bottomSheetState.hide()
@@ -137,8 +138,11 @@ fun ReaderScreen(
         sheetContent = {
             TranslationSheet(
                 state = translationState,
-                onSave = { original, translation ->
+                onSaveWord = { original, translation ->
                     viewModel.saveVocabulary(original, translation)
+                },
+                onSaveSentence = { original, translation ->
+                    viewModel.saveSentence(original, translation)
                 },
                 onDismiss = {
                     scope.launch { bottomSheetState.hide() }
@@ -414,7 +418,8 @@ private fun ArticleContent(
 @Composable
 private fun TranslationSheet(
     state: TranslationState,
-    onSave: (String, String) -> Unit,
+    onSaveWord: (String, String) -> Unit,
+    onSaveSentence: (String, String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     Column(
@@ -452,21 +457,28 @@ private fun TranslationSheet(
             }
             
             is TranslationState.Success -> {
+                val isMultipleWords = state.original.trim().split(Regex("\\s+")).size > 1
+                
                 Column {
                     // Original text
                     Text(
                         text = state.original,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = if (isMultipleWords) 
+                            MaterialTheme.typography.bodyLarge 
+                        else 
+                            MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Medium
                     )
                     
-                    // Phonetic (if available)
-                    state.phonetic?.let { phonetic ->
-                        Text(
-                            text = phonetic,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    // Phonetic (if available, only for single words)
+                    if (!isMultipleWords) {
+                        state.phonetic?.let { phonetic ->
+                            Text(
+                                text = phonetic,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -487,19 +499,36 @@ private fun TranslationSheet(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // Save button
-                    TextButton(
-                        onClick = { onSave(state.original, state.translation) },
-                        modifier = Modifier.align(Alignment.End)
+                    // Save buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("加入词汇本")
+                        if (!isMultipleWords) {
+                            // Single word - save to vocabulary
+                            TextButton(
+                                onClick = { onSaveWord(state.original, state.translation) }
+                            ) {
+                                Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("加入生词本")
+                            }
+                        }
+                        
+                        // Sentence or phrase - save to sentences
+                        TextButton(
+                            onClick = { onSaveSentence(state.original, state.translation) }
+                        ) {
+                            Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isMultipleWords) "保存句子" else "保存为句子")
+                        }
                     }
                 }
             }
             
-            is TranslationState.Saved -> {
+            is TranslationState.SavedWord -> {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -507,7 +536,22 @@ private fun TranslationSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "已保存到词汇本",
+                        text = "已保存到生词本",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            is TranslationState.SavedSentence -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "已保存到句子摘抄",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )

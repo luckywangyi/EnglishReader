@@ -8,10 +8,12 @@ import androidx.room.Room
 import com.englishreader.data.local.AppDatabase
 import com.englishreader.data.local.dao.ArticleDao
 import com.englishreader.data.local.dao.ReadingStatsDao
+import com.englishreader.data.local.dao.SentenceDao
 import com.englishreader.data.local.dao.VocabularyDao
 import com.englishreader.data.remote.gemini.GeminiService
 import com.englishreader.data.remote.rss.RssService
 import com.englishreader.data.repository.ArticleRepository
+import com.englishreader.data.repository.SentenceRepository
 import com.englishreader.data.repository.SettingsRepository
 import com.englishreader.data.repository.TranslationRepository
 import com.englishreader.data.repository.VocabularyRepository
@@ -124,5 +126,19 @@ object AppModule {
         vocabularyDao: VocabularyDao
     ): VocabularyRepository {
         return VocabularyRepository(vocabularyDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSentenceDao(database: AppDatabase): SentenceDao {
+        return database.sentenceDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSentenceRepository(
+        sentenceDao: SentenceDao
+    ): SentenceRepository {
+        return SentenceRepository(sentenceDao)
     }
 }

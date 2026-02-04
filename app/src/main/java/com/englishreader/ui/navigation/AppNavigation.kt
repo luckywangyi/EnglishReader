@@ -28,10 +28,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.englishreader.ui.screens.home.HomeScreen
+import com.englishreader.ui.screens.notes.NotesScreen
 import com.englishreader.ui.screens.reader.ReaderScreen
 import com.englishreader.ui.screens.settings.SettingsScreen
 import com.englishreader.ui.screens.stats.StatsScreen
-import com.englishreader.ui.screens.vocabulary.VocabularyScreen
 
 sealed class Screen(
     val route: String,
@@ -40,7 +40,7 @@ sealed class Screen(
     val unselectedIcon: ImageVector
 ) {
     data object Home : Screen("home", "首页", Icons.Filled.Home, Icons.Outlined.Home)
-    data object Vocabulary : Screen("vocabulary", "词汇本", Icons.Filled.Book, Icons.Outlined.Book)
+    data object Notes : Screen("notes", "笔记本", Icons.Filled.Book, Icons.Outlined.Book)
     data object Stats : Screen("stats", "统计", Icons.Filled.BarChart, Icons.Outlined.BarChart)
     data object Settings : Screen("settings", "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
     data object Reader : Screen("reader/{articleId}", "阅读", Icons.Filled.Book, Icons.Outlined.Book) {
@@ -50,7 +50,7 @@ sealed class Screen(
 
 val bottomNavItems = listOf(
     Screen.Home,
-    Screen.Vocabulary,
+    Screen.Notes,
     Screen.Stats,
     Screen.Settings
 )
@@ -107,8 +107,8 @@ fun AppNavigation() {
                 )
             }
             
-            composable(Screen.Vocabulary.route) {
-                VocabularyScreen()
+            composable(Screen.Notes.route) {
+                NotesScreen()
             }
             
             composable(Screen.Stats.route) {

@@ -2,7 +2,9 @@
 <resources>
     <string name="app_name">English Reader</string>
     <string name="home">首页</string>
-    <string name="vocabulary">词汇本</string>
+    <string name="notes">笔记本</string>
+    <string name="vocabulary">生词本</string>
+    <string name="sentences">句子摘抄</string>
     <string name="stats">统计</string>
     <string name="settings">设置</string>
     <string name="reading">阅读</string>
@@ -13,7 +15,8 @@
     <string name="loading">加载中...</string>
     <string name="error_loading">加载失败</string>
     <string name="retry">重试</string>
-    <string name="save_word">保存单词</string>
+    <string name="save_word">加入生词本</string>
+    <string name="save_sentence">保存句子</string>
     <string name="translate">翻译</string>
     <string name="api_key_hint">请输入 Gemini API Key</string>
     <string name="api_key_guide">如何获取免费 API Key</string>
@@ -23,4 +26,8 @@
     <string name="articles_read">已读文章</string>
     <string name="streak_days">连续天数</string>
     <string name="saved_words">收藏词汇</string>
+    <string name="saved_sentences">摘抄句子</string>
+    <string name="saved_to_vocabulary">已保存到生词本</string>
+    <string name="saved_to_sentences">已保存到句子摘抄</string>
+    <string name="export_notes">导出笔记</string>
 </resources>
