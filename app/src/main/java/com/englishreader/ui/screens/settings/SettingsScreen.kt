@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.RssFeed
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -58,6 +60,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    onNavigateToRssManage: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val apiKey by viewModel.apiKey.collectAsState()
@@ -106,7 +109,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Gemini API 配置",
+                            text = "通义千问 API 配置",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -119,7 +122,7 @@ fun SettingsScreen(
                         onValueChange = { editedApiKey = it },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("API Key") },
-                        placeholder = { Text("输入你的 Gemini API Key") },
+                        placeholder = { Text("输入你的通义千问 API Key") },
                         visualTransformation = if (showApiKey) 
                             VisualTransformation.None 
                         else 
@@ -235,26 +238,26 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     Text(
-                        text = "1. 访问 Google AI Studio",
+                        text = "1. 访问阿里云 DashScope 控制台",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "2. 使用 Google 账号登录",
+                        text = "2. 使用阿里云/支付宝/淘宝账号登录",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "3. 点击 \"Get API Key\" 按钮",
+                        text = "3. 开通 DashScope 服务（免费）",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "4. 创建新的 API Key 并复制",
+                        text = "4. 在 API-KEY 管理中创建并复制",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     TextButton(
-                        onClick = { uriHandler.openUri("https://aistudio.google.com/apikey") }
+                        onClick = { uriHandler.openUri("https://dashscope.console.aliyun.com/apiKey") }
                     ) {
                         Icon(
                             Icons.Default.OpenInNew,
@@ -262,15 +265,70 @@ fun SettingsScreen(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("打开 Google AI Studio")
+                        Text("打开 DashScope 控制台")
                     }
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Text(
-                        text = "免费额度: 每分钟 15 次请求，每天 1500 次",
+                        text = "免费额度: qwen-turbo 模型每月 100万 tokens",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "无需 VPN，国内可直接访问",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            }
+            
+            HorizontalDivider()
+            
+            // RSS 源管理
+            Text(
+                text = "内容设置",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Card(
+                onClick = onNavigateToRssManage,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.RssFeed,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "RSS 源管理",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = "添加自定义订阅源",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

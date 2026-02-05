@@ -1,8 +1,14 @@
 package com.englishreader.data.repository
 
 import com.englishreader.data.local.dao.ArticleDao
+import com.englishreader.data.local.dao.CustomRssSourceDao
+import com.englishreader.data.local.dao.ReadingStatsDao
 import com.englishreader.data.local.entity.ArticleEntity
-import com.englishreader.data.remote.gemini.GeminiService
+import com.englishreader.data.local.entity.ReadingStatsEntity
+import com.englishreader.data.remote.ai.AiService
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.englishreader.data.remote.rss.HtmlParser
 import com.englishreader.data.remote.rss.RssService
 import com.englishreader.data.remote.rss.RssSources
@@ -25,9 +31,12 @@ enum class FullContentFetchResult {
 class ArticleRepository @Inject constructor(
     private val rssService: RssService,
     private val articleDao: ArticleDao,
-    private val geminiService: GeminiService,
-    private val htmlParser: HtmlParser
+    private val aiService: AiService,
+    private val htmlParser: HtmlParser,
+    private val readingStatsDao: ReadingStatsDao,
+    private val customRssSourceDao: CustomRssSourceDao
 ) {
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val minWordCount = 500
     fun getAllArticles(): Flow<List<Article>> {
         return articleDao.getAllArticles().map { list ->
@@ -107,7 +116,21 @@ class ArticleRepository @Inject constructor(
     
     suspend fun refreshArticles(sources: List<RssSource> = RssSources.getEnabledSources()): Result<Int> {
         return try {
-            val articles = rssService.fetchAllArticles(sources)
+            // 合并内置源和自定义源
+            val customSources = customRssSourceDao.getEnabledSourcesList().map { entity ->
+                RssSource(
+                    id = entity.id,
+                    name = entity.name,
+                    url = entity.url,
+                    category = try { Category.valueOf(entity.category) } catch (e: Exception) { Category.CUSTOM },
+                    icon = null,
+                    iconUrl = entity.iconUrl,
+                    isEnabled = entity.isEnabled
+                )
+            }
+            
+            val allSources = sources + customSources
+            val articles = rssService.fetchAllArticles(allSources)
             articleDao.insertArticles(articles)
             Result.success(articles.size)
         } catch (e: Exception) {
@@ -131,11 +154,79 @@ class ArticleRepository @Inject constructor(
     }
     
     suspend fun updateReadStatus(id: String, isRead: Boolean) {
+        val article = articleDao.getArticleById(id)
+        val wasRead = article?.isRead ?: false
+        
         articleDao.updateReadStatus(id, isRead, System.currentTimeMillis())
+        
+        // 如果是首次标记为已读，记录阅读统计
+        if (isRead && !wasRead && article != null) {
+            recordReadingStats(article.wordCount)
+        }
+    }
+    
+    /**
+     * 记录每日阅读统计
+     */
+    private suspend fun recordReadingStats(wordCount: Int) {
+        val today = dateFormat.format(Date())
+        val existingStats = readingStatsDao.getStatsForDate(today)
+        
+        if (existingStats != null) {
+            // 更新现有记录
+            readingStatsDao.incrementStats(
+                date = today,
+                articles = 1,
+                words = wordCount,
+                minutes = 0,
+                vocabulary = 0
+            )
+        } else {
+            // 创建新记录
+            readingStatsDao.insertOrUpdateStats(
+                ReadingStatsEntity(
+                    date = today,
+                    articlesRead = 1,
+                    wordsRead = wordCount,
+                    timeSpentMinutes = 0,
+                    vocabularySaved = 0
+                )
+            )
+        }
     }
     
     suspend fun updateReadProgress(id: String, progress: Float) {
         articleDao.updateReadProgress(id, progress)
+    }
+    
+    /**
+     * 记录阅读时长（分钟）
+     */
+    suspend fun recordReadingTime(minutes: Int) {
+        if (minutes <= 0) return
+        
+        val today = dateFormat.format(Date())
+        val existingStats = readingStatsDao.getStatsForDate(today)
+        
+        if (existingStats != null) {
+            readingStatsDao.incrementStats(
+                date = today,
+                articles = 0,
+                words = 0,
+                minutes = minutes,
+                vocabulary = 0
+            )
+        } else {
+            readingStatsDao.insertOrUpdateStats(
+                ReadingStatsEntity(
+                    date = today,
+                    articlesRead = 0,
+                    wordsRead = 0,
+                    timeSpentMinutes = minutes,
+                    vocabularySaved = 0
+                )
+            )
+        }
     }
     
     suspend fun updateFavoriteStatus(id: String, isFavorite: Boolean) {
@@ -144,7 +235,7 @@ class ArticleRepository @Inject constructor(
     
     suspend fun analyzeArticle(article: Article): Result<Unit> {
         return try {
-            val analysis = geminiService.analyzeArticle(article.content, article.title)
+            val analysis = aiService.analyzeArticle(article.content, article.title)
             
             analysis.fold(
                 onSuccess = { result ->

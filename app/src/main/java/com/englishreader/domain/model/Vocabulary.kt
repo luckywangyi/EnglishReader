@@ -13,7 +13,11 @@ data class Vocabulary(
     val savedAt: Long,
     val reviewCount: Int,
     val lastReviewAt: Long?,
-    val isMastered: Boolean
+    val isMastered: Boolean,
+    // 间隔重复字段
+    val nextReviewAt: Long,
+    val easeFactor: Float,
+    val interval: Int
 ) {
     companion object {
         fun fromEntity(entity: VocabularyEntity): Vocabulary {
@@ -28,7 +32,10 @@ data class Vocabulary(
                 savedAt = entity.savedAt,
                 reviewCount = entity.reviewCount,
                 lastReviewAt = entity.lastReviewAt,
-                isMastered = entity.isMastered
+                isMastered = entity.isMastered,
+                nextReviewAt = entity.nextReviewAt,
+                easeFactor = entity.easeFactor,
+                interval = entity.interval
             )
         }
     }
@@ -45,7 +52,17 @@ data class Vocabulary(
             savedAt = savedAt,
             reviewCount = reviewCount,
             lastReviewAt = lastReviewAt,
-            isMastered = isMastered
+            isMastered = isMastered,
+            nextReviewAt = nextReviewAt,
+            easeFactor = easeFactor,
+            interval = interval
         )
+    }
+    
+    /**
+     * 是否需要复习（今天）
+     */
+    fun needsReview(): Boolean {
+        return !isMastered && nextReviewAt <= System.currentTimeMillis()
     }
 }

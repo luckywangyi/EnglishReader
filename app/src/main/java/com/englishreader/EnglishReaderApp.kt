@@ -19,8 +19,15 @@ class EnglishReaderApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         
-        // 创建通知渠道
-        notificationHelper.createNotificationChannel()
+        // 创建通知渠道（添加错误处理）
+        try {
+            if (::notificationHelper.isInitialized) {
+                notificationHelper.createNotificationChannel()
+            }
+        } catch (e: Exception) {
+            // 通知渠道创建失败不应该导致应用崩溃
+            e.printStackTrace()
+        }
     }
     
     override val workManagerConfiguration: Configuration

@@ -43,6 +43,9 @@ class StatsViewModel @Inject constructor(
     
     private fun loadStats() {
         viewModelScope.launch {
+            // 先迁移历史数据（如果需要）
+            migrateExistingReadings()
+            
             // Load overall stats
             val articlesRead = articleRepository.getReadArticleCount()
             val wordsRead = articleRepository.getTotalWordsRead()
@@ -63,6 +66,33 @@ class StatsViewModel @Inject constructor(
             
             // Load weekly data
             loadWeeklyData()
+        }
+    }
+    
+    /**
+     * 迁移已有的阅读记录到统计表（仅执行一次）
+     */
+    private suspend fun migrateExistingReadings() {
+        // 检查是否已有统计数据
+        val existingStats = readingStatsDao.getReadingDays()
+        if (existingStats.isNotEmpty()) return // 已有数据，无需迁移
+        
+        // 获取已读文章数量和总词数
+        val articlesRead = articleRepository.getReadArticleCount()
+        val wordsRead = articleRepository.getTotalWordsRead()
+        
+        if (articlesRead > 0) {
+            // 将历史数据记录到今天
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            readingStatsDao.insertOrUpdateStats(
+                com.englishreader.data.local.entity.ReadingStatsEntity(
+                    date = today,
+                    articlesRead = articlesRead,
+                    wordsRead = wordsRead,
+                    timeSpentMinutes = 0,
+                    vocabularySaved = 0
+                )
+            )
         }
     }
     

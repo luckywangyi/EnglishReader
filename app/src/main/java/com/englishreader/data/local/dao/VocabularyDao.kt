@@ -62,4 +62,24 @@ interface VocabularyDao {
     
     @Query("SELECT EXISTS(SELECT 1 FROM vocabulary WHERE word = :word)")
     suspend fun vocabularyExists(word: String): Boolean
+    
+    // 间隔重复相关查询
+    
+    /**
+     * 获取需要复习的词汇（未掌握且到期）
+     */
+    @Query("SELECT * FROM vocabulary WHERE isMastered = 0 AND nextReviewAt <= :currentTime ORDER BY nextReviewAt ASC")
+    fun getVocabularyDueForReview(currentTime: Long): Flow<List<VocabularyEntity>>
+    
+    /**
+     * 获取需要复习的词汇数量
+     */
+    @Query("SELECT COUNT(*) FROM vocabulary WHERE isMastered = 0 AND nextReviewAt <= :currentTime")
+    suspend fun getDueReviewCount(currentTime: Long): Int
+    
+    /**
+     * 更新间隔重复数据
+     */
+    @Query("UPDATE vocabulary SET nextReviewAt = :nextReviewAt, easeFactor = :easeFactor, interval = :interval, reviewCount = reviewCount + 1, lastReviewAt = :lastReviewAt WHERE id = :id")
+    suspend fun updateSpacedRepetition(id: String, nextReviewAt: Long, easeFactor: Float, interval: Int, lastReviewAt: Long)
 }

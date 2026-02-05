@@ -14,17 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Card
@@ -60,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -97,6 +96,13 @@ fun ReaderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
+    
+    // 离开页面时保存阅读时长
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            viewModel.saveReadingTime()
+        }
+    }
     
     // Calculate reading progress
     val readProgress by remember {
@@ -158,6 +164,9 @@ fun ReaderScreen(
                 onSaveSentence = { original, translation ->
                     viewModel.saveSentence(original, translation)
                 },
+                onSpeak = { text ->
+                    viewModel.speak(text)
+                },
                 onDismiss = {
                     scope.launch { bottomSheetState.hide() }
                     viewModel.clearTranslation()
@@ -181,21 +190,6 @@ fun ReaderScreen(
                         }
                         IconButton(onClick = { viewModel.increaseFontSize() }) {
                             Text("A+", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        }
-                        
-                        // Analyze button
-                        IconButton(
-                            onClick = { viewModel.analyzeArticle() },
-                            enabled = !isAnalyzing && article?.isAnalyzed != true
-                        ) {
-                            if (isAnalyzing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(Icons.Default.Analytics, "Analyze")
-                            }
                         }
                         
                         // Favorite button
@@ -269,32 +263,41 @@ fun ReaderScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                SelectionContainer {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState)
-                            .padding(horizontal = 20.dp, vertical = 16.dp)
-                    ) {
-                        ArticleHeader(
-                            article = article!!,
-                            showSummary = showSummary,
-                            onToggleSummary = { viewModel.toggleSummary() }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Article content with selectable text
-                        ArticleContent(
-                            content = article!!.content,
-                            fontSize = fontSize,
-                            onTextSelected = { text ->
-                                viewModel.translate(text)
-                            }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(48.dp))
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                ) {
+                    ArticleHeader(
+                        article = article!!,
+                        showSummary = showSummary,
+                        onToggleSummary = { viewModel.toggleSummary() }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // 提示文字
+                    Text(
+                        text = "点击单词翻译 · 长按句子翻译",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    // Article content - tap on words, long press on sentences
+                    ArticleContent(
+                        content = article!!.content,
+                        fontSize = fontSize,
+                        onWordClick = { word ->
+                            viewModel.translate(word)
+                        },
+                        onSentenceClick = { sentence ->
+                            viewModel.translate(sentence)
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
         }
@@ -430,24 +433,110 @@ private fun ArticleHeader(
 private fun ArticleContent(
     content: String,
     fontSize: Int,
-    onTextSelected: (String) -> Unit
+    onWordClick: (String) -> Unit,
+    onSentenceClick: (String) -> Unit
 ) {
     // Split content into paragraphs
     val paragraphs = content.split("\n\n").filter { it.isNotBlank() }
     
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         paragraphs.forEach { paragraph ->
-            Text(
+            ClickableParagraph(
                 text = paragraph.trim(),
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = fontSize.sp,
-                    lineHeight = (fontSize * 1.6).sp,
-                    fontFamily = FontFamily.Serif
-                ),
-                textAlign = TextAlign.Justify
+                fontSize = fontSize,
+                onWordClick = onWordClick,
+                onSentenceClick = onSentenceClick
             )
         }
     }
+}
+
+@Composable
+private fun ClickableParagraph(
+    text: String,
+    fontSize: Int,
+    onWordClick: (String) -> Unit,
+    onSentenceClick: (String) -> Unit = {}
+) {
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    
+    // 将段落分割为句子
+    val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+    
+    val annotatedString = buildAnnotatedString {
+        var globalIndex = 0
+        
+        sentences.forEachIndexed { sentenceIndex, sentence ->
+            val sentenceStart = globalIndex
+            
+            // 为整个句子添加注解
+            pushStringAnnotation(tag = "SENTENCE", annotation = sentence.trim())
+            
+            // 分割句子中的单词
+            val tokens = sentence.split(Regex("(?<=\\s)|(?=\\s)|(?<=[.,!?;:\"'()\\[\\]{}])|(?=[.,!?;:\"'()\\[\\]{}])"))
+            
+            tokens.forEach { token ->
+                val cleanWord = token.trim()
+                if (cleanWord.isNotEmpty() && cleanWord.matches(Regex("[a-zA-Z]+"))) {
+                    pushStringAnnotation(tag = "WORD", annotation = cleanWord)
+                    append(token)
+                    pop()
+                } else {
+                    append(token)
+                }
+                globalIndex += token.length
+            }
+            
+            pop() // 结束句子注解
+            
+            // 句子之间添加空格
+            if (sentenceIndex < sentences.size - 1) {
+                append(" ")
+                globalIndex += 1
+            }
+        }
+    }
+    
+    Text(
+        text = annotatedString,
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontSize = fontSize.sp,
+            lineHeight = (fontSize * 1.6).sp,
+            fontFamily = FontFamily.Serif
+        ),
+        textAlign = TextAlign.Justify,
+        onTextLayout = { textLayoutResult = it },
+        modifier = Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onTap = { offset ->
+                    // 点击 → 翻译单词
+                    textLayoutResult?.let { layoutResult ->
+                        val position = layoutResult.getOffsetForPosition(offset)
+                        annotatedString.getStringAnnotations(
+                            tag = "WORD",
+                            start = position,
+                            end = position
+                        ).firstOrNull()?.let { annotation ->
+                            onWordClick(annotation.item)
+                        }
+                    }
+                },
+                onLongPress = { offset ->
+                    // 长按 → 翻译句子
+                    textLayoutResult?.let { layoutResult ->
+                        val position = layoutResult.getOffsetForPosition(offset)
+                        annotatedString.getStringAnnotations(
+                            tag = "SENTENCE",
+                            start = position,
+                            end = position
+                        ).firstOrNull()?.let { annotation ->
+                            onSentenceClick(annotation.item)
+                        }
+                    }
+                }
+            )
+        }
+    )
 }
 
 @Composable
@@ -455,6 +544,7 @@ private fun TranslationSheet(
     state: TranslationState,
     onSaveWord: (String, String) -> Unit,
     onSaveSentence: (String, String?) -> Unit,
+    onSpeak: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     Column(
@@ -495,15 +585,31 @@ private fun TranslationSheet(
                 val isMultipleWords = state.original.trim().split(Regex("\\s+")).size > 1
                 
                 Column {
-                    // Original text
-                    Text(
-                        text = state.original,
-                        style = if (isMultipleWords) 
-                            MaterialTheme.typography.bodyLarge 
-                        else 
-                            MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Medium
-                    )
+                    // Original text with speak button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = state.original,
+                            style = if (isMultipleWords) 
+                                MaterialTheme.typography.bodyLarge 
+                            else 
+                                MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        
+                        // 发音按钮
+                        IconButton(
+                            onClick = { onSpeak(state.original) }
+                        ) {
+                            Icon(
+                                Icons.Default.VolumeUp,
+                                contentDescription = "朗读",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     
                     // Phonetic (if available, only for single words)
                     if (!isMultipleWords) {

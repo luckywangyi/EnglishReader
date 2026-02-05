@@ -33,5 +33,10 @@ data class ArticleEntity(
     val readProgress: Float = 0f,
     val lastReadAt: Long? = null,
     val isFavorite: Boolean = false,
-    val readTimeMinutes: Int = 0
+    val readTimeMinutes: Int = 0,
+    
+    // Offline Reading
+    val isDownloaded: Boolean = false,       // 是否已下载离线
+    val localImagePath: String? = null,      // 本地图片路径
+    val downloadedAt: Long? = null           // 下载时间
 )

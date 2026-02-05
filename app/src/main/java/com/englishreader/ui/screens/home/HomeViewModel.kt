@@ -76,8 +76,17 @@ class HomeViewModel @Inject constructor(
     )
     
     init {
-        refreshArticles()
-        loadRecommendation()
+        // 缓存优先策略：先立即显示本地缓存的文章
+        // 只在数据库为空时才自动触发网络刷新
+        viewModelScope.launch {
+            val articleCount = articleRepository.getArticleCount()
+            if (articleCount == 0) {
+                // 数据库为空，需要从网络获取
+                refreshArticles()
+            }
+            // 无论是否刷新，都加载推荐
+            loadRecommendation()
+        }
     }
     
     private fun loadRecommendation() {

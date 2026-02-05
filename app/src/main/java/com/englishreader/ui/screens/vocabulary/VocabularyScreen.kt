@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -158,6 +159,7 @@ fun VocabularyScreen(
                         VocabularyCard(
                             vocabulary = vocab,
                             onToggleMastered = { viewModel.toggleMastered(vocab) },
+                            onSpeak = { viewModel.speakWord(vocab.word) },
                             onDelete = { showDeleteDialog = vocab }
                         )
                     }
@@ -248,6 +250,7 @@ private fun StatsCard(stats: VocabularyStats) {
 private fun VocabularyCard(
     vocabulary: Vocabulary,
     onToggleMastered: () -> Unit,
+    onSpeak: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -274,12 +277,28 @@ private fun VocabularyCard(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                // Word
-                Text(
-                    text = vocabulary.word,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                // Word with speak button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = vocabulary.word,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    IconButton(
+                        onClick = onSpeak,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.VolumeUp,
+                            contentDescription = "朗读",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 
                 // Phonetic
                 vocabulary.phonetic?.let { phonetic ->

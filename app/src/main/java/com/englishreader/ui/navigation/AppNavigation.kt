@@ -27,7 +27,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.englishreader.ui.screens.flashcard.FlashcardScreen
 import com.englishreader.ui.screens.home.HomeScreen
+import com.englishreader.ui.screens.rss.RssManageScreen
 import com.englishreader.ui.screens.notes.NotesScreen
 import com.englishreader.ui.screens.reader.ReaderScreen
 import com.englishreader.ui.screens.settings.SettingsScreen
@@ -46,6 +48,8 @@ sealed class Screen(
     data object Reader : Screen("reader/{articleId}", "阅读", Icons.Filled.Book, Icons.Outlined.Book) {
         fun createRoute(articleId: String) = "reader/$articleId"
     }
+    data object Flashcard : Screen("flashcard", "复习", Icons.Filled.Book, Icons.Outlined.Book)
+    data object RssManage : Screen("rss_manage", "RSS管理", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
 val bottomNavItems = listOf(
@@ -61,8 +65,10 @@ fun AppNavigation() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     
-    // Hide bottom bar on reader screen
-    val showBottomBar = currentDestination?.route?.startsWith("reader") != true
+    // Hide bottom bar on reader, flashcard, and rss manage screens
+    val showBottomBar = currentDestination?.route?.startsWith("reader") != true &&
+            currentDestination?.route != Screen.Flashcard.route &&
+            currentDestination?.route != Screen.RssManage.route
 
     Scaffold(
         bottomBar = {
@@ -108,7 +114,17 @@ fun AppNavigation() {
             }
             
             composable(Screen.Notes.route) {
-                NotesScreen()
+                NotesScreen(
+                    onNavigateToFlashcard = {
+                        navController.navigate(Screen.Flashcard.route)
+                    }
+                )
+            }
+            
+            composable(Screen.Flashcard.route) {
+                FlashcardScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
             
             composable(Screen.Stats.route) {
@@ -116,7 +132,17 @@ fun AppNavigation() {
             }
             
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    onNavigateToRssManage = {
+                        navController.navigate(Screen.RssManage.route)
+                    }
+                )
+            }
+            
+            composable(Screen.RssManage.route) {
+                RssManageScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
             
             composable(

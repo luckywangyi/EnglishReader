@@ -2,8 +2,8 @@ package com.englishreader.data.repository
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import com.englishreader.data.remote.gemini.GeminiService
-import com.englishreader.data.remote.gemini.WordExplanation
+import com.englishreader.data.remote.ai.AiService
+import com.englishreader.data.remote.ai.WordExplanation
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,7 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class TranslationRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val geminiService: GeminiService
+    private val aiService: AiService
 ) {
     private var dictDatabase: SQLiteDatabase? = null
     
@@ -39,7 +39,7 @@ class TranslationRepository @Inject constructor(
         }
         
         // Use AI translation
-        val aiResult = geminiService.translate(text)
+        val aiResult = aiService.translate(text)
         return aiResult.fold(
             onSuccess = { translation ->
                 TranslationResult.AITranslation(
@@ -73,7 +73,7 @@ class TranslationRepository @Inject constructor(
         }
         
         // Fall back to AI
-        return geminiService.explainWord(word, context)
+        return aiService.explainWord(word, context)
     }
     
     private suspend fun lookupLocalDictionary(word: String): DictEntry? {

@@ -10,7 +10,7 @@ import com.englishreader.data.local.dao.ArticleDao
 import com.englishreader.data.local.dao.ReadingStatsDao
 import com.englishreader.data.local.dao.SentenceDao
 import com.englishreader.data.local.dao.VocabularyDao
-import com.englishreader.data.remote.gemini.GeminiService
+import com.englishreader.data.remote.ai.AiService
 import com.englishreader.data.remote.rss.RssService
 import com.englishreader.data.repository.ArticleRepository
 import com.englishreader.data.repository.SentenceRepository
@@ -19,6 +19,7 @@ import com.englishreader.data.repository.TranslationRepository
 import com.englishreader.data.repository.VocabularyRepository
 import com.englishreader.domain.service.RecommendationService
 import com.englishreader.notification.NotificationHelper
+import com.englishreader.util.TtsManager
 import com.englishreader.worker.ReminderScheduler
 import com.prof18.rssparser.RssParser
 import dagger.Module
@@ -40,9 +41,9 @@ object AppModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(10, TimeUnit.SECONDS)  // 缩短连接超时
+            .readTimeout(15, TimeUnit.SECONDS)     // 缩短读取超时
+            .writeTimeout(15, TimeUnit.SECONDS)    // 缩短写入超时
             .build()
     }
 
@@ -65,7 +66,15 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "english_reader_db"
-        ).build()
+        )
+            .addMigrations(
+                AppDatabase.MIGRATION_1_2,
+                AppDatabase.MIGRATION_2_3,
+                AppDatabase.MIGRATION_3_4
+            )
+            .fallbackToDestructiveMigration()  // 备用：如果迁移失败则重建数据库
+            .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)  // 更稳定的日志模式
+            .build()
     }
 
     @Provides
@@ -100,8 +109,8 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideGeminiService(settingsRepository: SettingsRepository): GeminiService {
-        return GeminiService(settingsRepository)
+    fun provideAiService(settingsRepository: SettingsRepository): AiService {
+        return AiService(settingsRepository)
     }
 
     @Provides
@@ -109,19 +118,21 @@ object AppModule {
     fun provideArticleRepository(
         rssService: RssService,
         articleDao: ArticleDao,
-        geminiService: GeminiService,
-        htmlParser: com.englishreader.data.remote.rss.HtmlParser
+        aiService: AiService,
+        htmlParser: com.englishreader.data.remote.rss.HtmlParser,
+        readingStatsDao: ReadingStatsDao,
+        customRssSourceDao: com.englishreader.data.local.dao.CustomRssSourceDao
     ): ArticleRepository {
-        return ArticleRepository(rssService, articleDao, geminiService, htmlParser)
+        return ArticleRepository(rssService, articleDao, aiService, htmlParser, readingStatsDao, customRssSourceDao)
     }
 
     @Provides
     @Singleton
     fun provideTranslationRepository(
         @ApplicationContext context: Context,
-        geminiService: GeminiService
+        aiService: AiService
     ): TranslationRepository {
-        return TranslationRepository(context, geminiService)
+        return TranslationRepository(context, aiService)
     }
 
     @Provides
@@ -136,6 +147,12 @@ object AppModule {
     @Singleton
     fun provideSentenceDao(database: AppDatabase): SentenceDao {
         return database.sentenceDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideCustomRssSourceDao(database: AppDatabase): com.englishreader.data.local.dao.CustomRssSourceDao {
+        return database.customRssSourceDao()
     }
 
     @Provides
@@ -169,5 +186,13 @@ object AppModule {
         @ApplicationContext context: Context
     ): ReminderScheduler {
         return ReminderScheduler(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideTtsManager(
+        @ApplicationContext context: Context
+    ): TtsManager {
+        return TtsManager(context)
     }
 }

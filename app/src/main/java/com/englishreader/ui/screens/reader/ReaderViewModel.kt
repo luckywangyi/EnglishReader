@@ -11,6 +11,7 @@ import com.englishreader.data.repository.TranslationRepository
 import com.englishreader.data.repository.TranslationResult
 import com.englishreader.data.repository.VocabularyRepository
 import com.englishreader.domain.model.Article
+import com.englishreader.util.TtsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,7 +28,8 @@ class ReaderViewModel @Inject constructor(
     private val translationRepository: TranslationRepository,
     private val vocabularyRepository: VocabularyRepository,
     private val sentenceRepository: SentenceRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val ttsManager: TtsManager
 ) : ViewModel() {
     
     private val articleId: String = savedStateHandle.get<String>("articleId") ?: ""
@@ -151,6 +153,24 @@ class ReaderViewModel @Inject constructor(
         _translationState.value = TranslationState.Idle
     }
     
+    /**
+     * 朗读文本
+     */
+    fun speak(text: String) {
+        if (isMultipleWords(text)) {
+            ttsManager.speakSentence(text)
+        } else {
+            ttsManager.speakWord(text)
+        }
+    }
+    
+    /**
+     * 停止朗读
+     */
+    fun stopSpeaking() {
+        ttsManager.stop()
+    }
+    
     fun toggleFavorite() {
         viewModelScope.launch {
             article.value?.let { art ->
@@ -193,9 +213,39 @@ class ReaderViewModel @Inject constructor(
         }
     }
     
+    /**
+     * 保存阅读时长（在离开页面时调用）
+     */
+    fun saveReadingTime() {
+        if (readingStartTime <= 0) return
+        
+        val readingTimeMs = System.currentTimeMillis() - readingStartTime
+        val readingTimeMinutes = (readingTimeMs / 60000).toInt()
+        
+        // 至少阅读1分钟才记录
+        if (readingTimeMinutes >= 1) {
+            viewModelScope.launch {
+                articleRepository.recordReadingTime(readingTimeMinutes)
+            }
+        }
+        
+        // 重置开始时间，避免重复记录
+        readingStartTime = 0
+    }
+    
     override fun onCleared() {
         super.onCleared()
-        // Could save reading time stats here
+        // 在 ViewModel 销毁时尝试保存阅读时长
+        if (readingStartTime > 0) {
+            val readingTimeMs = System.currentTimeMillis() - readingStartTime
+            val readingTimeMinutes = (readingTimeMs / 60000).toInt()
+            if (readingTimeMinutes >= 1) {
+                // 使用非阻塞方式保存
+                kotlinx.coroutines.GlobalScope.launch {
+                    articleRepository.recordReadingTime(readingTimeMinutes)
+                }
+            }
+        }
     }
 }
 

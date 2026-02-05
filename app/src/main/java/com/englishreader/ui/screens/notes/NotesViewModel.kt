@@ -112,6 +112,10 @@ class NotesViewModel @Inject constructor(
     private val _sentenceStats = MutableStateFlow(SentenceStats(0, 0))
     val sentenceStats: StateFlow<SentenceStats> = _sentenceStats.asStateFlow()
     
+    // 需要复习的词汇数量
+    private val _dueReviewCount = MutableStateFlow(0)
+    val dueReviewCount: StateFlow<Int> = _dueReviewCount.asStateFlow()
+    
     init {
         loadStats()
     }
@@ -127,6 +131,9 @@ class NotesViewModel @Inject constructor(
             val sentenceTotal = sentenceRepository.getSentenceCount()
             val sentenceFavorite = sentenceRepository.getFavoriteCount()
             _sentenceStats.value = SentenceStats(sentenceTotal, sentenceFavorite)
+            
+            // 需要复习的词汇数量
+            _dueReviewCount.value = vocabularyRepository.getDueReviewCount()
         }
     }
     

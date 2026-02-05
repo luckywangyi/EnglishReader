@@ -2,72 +2,107 @@ package com.englishreader.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light Theme Colors
-val Primary = Color(0xFF1976D2)
+// =============================================================================
+// Apple-Inspired Light Theme Colors
+// =============================================================================
+
+// Primary - iOS Blue
+val Primary = Color(0xFF007AFF)
 val OnPrimary = Color(0xFFFFFFFF)
-val PrimaryContainer = Color(0xFFD1E4FF)
+val PrimaryContainer = Color(0xFFE5F1FF)
 val OnPrimaryContainer = Color(0xFF001D36)
 
-val Secondary = Color(0xFF545F71)
+// Secondary - Neutral Gray
+val Secondary = Color(0xFF8E8E93)
 val OnSecondary = Color(0xFFFFFFFF)
-val SecondaryContainer = Color(0xFFD8E3F8)
-val OnSecondaryContainer = Color(0xFF111C2B)
+val SecondaryContainer = Color(0xFFF2F2F7)
+val OnSecondaryContainer = Color(0xFF1D1D1F)
 
-val Tertiary = Color(0xFF6D5677)
+// Tertiary - iOS Purple
+val Tertiary = Color(0xFF5856D6)
 val OnTertiary = Color(0xFFFFFFFF)
-val TertiaryContainer = Color(0xFFF6D9FF)
-val OnTertiaryContainer = Color(0xFF271430)
+val TertiaryContainer = Color(0xFFEEEEFF)
+val OnTertiaryContainer = Color(0xFF1C1B3A)
 
-val Error = Color(0xFFBA1A1A)
+// Error - iOS Red
+val Error = Color(0xFFFF3B30)
 val OnError = Color(0xFFFFFFFF)
-val ErrorContainer = Color(0xFFFFDAD6)
+val ErrorContainer = Color(0xFFFFEDEB)
 val OnErrorContainer = Color(0xFF410002)
 
-val Background = Color(0xFFFDFCFF)
-val OnBackground = Color(0xFF1A1C1E)
-val Surface = Color(0xFFFDFCFF)
-val OnSurface = Color(0xFF1A1C1E)
-val SurfaceVariant = Color(0xFFDFE2EB)
-val OnSurfaceVariant = Color(0xFF43474E)
-val Outline = Color(0xFF73777F)
+// Surfaces - iOS Light Gray System
+val Background = Color(0xFFF2F2F7)
+val OnBackground = Color(0xFF1D1D1F)
+val Surface = Color(0xFFFFFFFF)
+val OnSurface = Color(0xFF1D1D1F)
+val SurfaceVariant = Color(0xFFF5F5F7)
+val OnSurfaceVariant = Color(0xFF86868B)
+val Outline = Color(0xFFD1D1D6)
+val OutlineVariant = Color(0xFFE5E5EA)
 
-// Dark Theme Colors
-val PrimaryDark = Color(0xFF9ECAFF)
-val OnPrimaryDark = Color(0xFF003258)
-val PrimaryContainerDark = Color(0xFF00497D)
+// =============================================================================
+// Apple-Inspired Dark Theme Colors
+// =============================================================================
+
+val PrimaryDark = Color(0xFF0A84FF)
+val OnPrimaryDark = Color(0xFFFFFFFF)
+val PrimaryContainerDark = Color(0xFF003A70)
 val OnPrimaryContainerDark = Color(0xFFD1E4FF)
 
-val SecondaryDark = Color(0xFFBCC7DB)
-val OnSecondaryDark = Color(0xFF263141)
-val SecondaryContainerDark = Color(0xFF3C4758)
-val OnSecondaryContainerDark = Color(0xFFD8E3F8)
+val SecondaryDark = Color(0xFF98989D)
+val OnSecondaryDark = Color(0xFFFFFFFF)
+val SecondaryContainerDark = Color(0xFF2C2C2E)
+val OnSecondaryContainerDark = Color(0xFFE5E5EA)
 
-val TertiaryDark = Color(0xFFD9BDE4)
-val OnTertiaryDark = Color(0xFF3D2946)
-val TertiaryContainerDark = Color(0xFF553F5E)
-val OnTertiaryContainerDark = Color(0xFFF6D9FF)
+val TertiaryDark = Color(0xFF5E5CE6)
+val OnTertiaryDark = Color(0xFFFFFFFF)
+val TertiaryContainerDark = Color(0xFF3A3A5C)
+val OnTertiaryContainerDark = Color(0xFFEEEEFF)
 
-val ErrorDark = Color(0xFFFFB4AB)
-val OnErrorDark = Color(0xFF690005)
+val ErrorDark = Color(0xFFFF453A)
+val OnErrorDark = Color(0xFFFFFFFF)
 val ErrorContainerDark = Color(0xFF93000A)
 val OnErrorContainerDark = Color(0xFFFFDAD6)
 
-val BackgroundDark = Color(0xFF1A1C1E)
-val OnBackgroundDark = Color(0xFFE2E2E6)
-val SurfaceDark = Color(0xFF1A1C1E)
-val OnSurfaceDark = Color(0xFFE2E2E6)
-val SurfaceVariantDark = Color(0xFF43474E)
-val OnSurfaceVariantDark = Color(0xFFC3C6CF)
-val OutlineDark = Color(0xFF8D9199)
+val BackgroundDark = Color(0xFF000000)
+val OnBackgroundDark = Color(0xFFFFFFFF)
+val SurfaceDark = Color(0xFF1C1C1E)
+val OnSurfaceDark = Color(0xFFFFFFFF)
+val SurfaceVariantDark = Color(0xFF2C2C2E)
+val OnSurfaceVariantDark = Color(0xFF98989D)
+val OutlineDark = Color(0xFF48484A)
+val OutlineVariantDark = Color(0xFF38383A)
 
-// Custom Colors
-val DifficultyEasy = Color(0xFF4CAF50)
-val DifficultyMedium = Color(0xFFFFC107)
-val DifficultyHard = Color(0xFFFF9800)
-val DifficultyAdvanced = Color(0xFFF44336)
+// =============================================================================
+// Glassmorphism Colors
+// =============================================================================
 
-val CategoryNews = Color(0xFF2196F3)
-val CategoryTech = Color(0xFF9C27B0)
-val CategoryBusiness = Color(0xFF4CAF50)
-val CategoryScience = Color(0xFFFF5722)
-val CategorySpeech = Color(0xFF00BCD4)
+val GlassWhite = Color(0xFFFFFFFF)
+val GlassBackground = Color(0xE6FFFFFF)      // 90% white - frosted glass
+val GlassBackgroundLight = Color(0xCCFFFFFF) // 80% white - lighter glass
+val GlassBorder = Color(0x33FFFFFF)          // 20% white border
+val GlassShadow = Color(0x14000000)          // 8% black shadow
+
+// Dark mode glass
+val GlassBackgroundDark = Color(0xCC1C1C1E)  // 80% dark surface
+val GlassBorderDark = Color(0x33FFFFFF)      // 20% white border
+
+// =============================================================================
+// Refined Difficulty Colors (Muted, Apple-like)
+// =============================================================================
+
+val DifficultyEasy = Color(0xFF34C759)       // iOS Green
+val DifficultyMedium = Color(0xFFFF9500)     // iOS Orange
+val DifficultyHard = Color(0xFFFF3B30)       // iOS Red
+val DifficultyAdvanced = Color(0xFFAF52DE)   // iOS Purple
+
+// =============================================================================
+// Category Colors (Muted, Low Saturation)
+// =============================================================================
+
+val CategoryNews = Color(0xFF007AFF)         // iOS Blue
+val CategoryTech = Color(0xFF5856D6)         // iOS Purple
+val CategoryBusiness = Color(0xFF34C759)     // iOS Green
+val CategoryScience = Color(0xFFFF9500)      // iOS Orange
+val CategorySpeech = Color(0xFF5AC8FA)       // iOS Teal
+val CategoryCulture = Color(0xFFFF2D55)      // iOS Pink

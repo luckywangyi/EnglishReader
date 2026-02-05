@@ -91,4 +91,39 @@ class VocabularyRepository @Inject constructor(
     suspend fun vocabularyExists(word: String): Boolean {
         return vocabularyDao.vocabularyExists(word.lowercase())
     }
+    
+    // 间隔重复相关方法
+    
+    /**
+     * 获取需要复习的词汇
+     */
+    fun getVocabularyDueForReview(): Flow<List<Vocabulary>> {
+        return vocabularyDao.getVocabularyDueForReview(System.currentTimeMillis())
+            .map { list -> list.map { Vocabulary.fromEntity(it) } }
+    }
+    
+    /**
+     * 获取需要复习的词汇数量
+     */
+    suspend fun getDueReviewCount(): Int {
+        return vocabularyDao.getDueReviewCount(System.currentTimeMillis())
+    }
+    
+    /**
+     * 更新间隔重复数据
+     */
+    suspend fun updateSpacedRepetition(
+        id: String,
+        nextReviewAt: Long,
+        easeFactor: Float,
+        interval: Int
+    ) {
+        vocabularyDao.updateSpacedRepetition(
+            id = id,
+            nextReviewAt = nextReviewAt,
+            easeFactor = easeFactor,
+            interval = interval,
+            lastReviewAt = System.currentTimeMillis()
+        )
+    }
 }

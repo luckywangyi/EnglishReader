@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -62,9 +63,11 @@ import com.englishreader.domain.model.Vocabulary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotesScreen(
+    onNavigateToFlashcard: () -> Unit = {},
     viewModel: NotesViewModel = hiltViewModel()
 ) {
     val currentTab by viewModel.currentTab.collectAsState()
+    val dueReviewCount by viewModel.dueReviewCount.collectAsState()
     val context = LocalContext.current
     
     Scaffold(
@@ -72,6 +75,31 @@ fun NotesScreen(
             TopAppBar(
                 title = { Text("笔记本") },
                 actions = {
+                    // 开始复习按钮
+                    IconButton(
+                        onClick = onNavigateToFlashcard
+                    ) {
+                        androidx.compose.foundation.layout.Box {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "开始复习")
+                            if (dueReviewCount > 0) {
+                                androidx.compose.foundation.layout.Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(16.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .padding(0.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (dueReviewCount > 99) "99+" else dueReviewCount.toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
                     IconButton(
                         onClick = {
                             val text = viewModel.getExportText()

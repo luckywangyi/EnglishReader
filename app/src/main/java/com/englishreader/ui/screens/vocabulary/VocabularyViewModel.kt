@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.englishreader.data.repository.VocabularyRepository
 import com.englishreader.domain.model.Vocabulary
+import com.englishreader.util.TtsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,7 +21,8 @@ enum class VocabularyFilter {
 
 @HiltViewModel
 class VocabularyViewModel @Inject constructor(
-    private val vocabularyRepository: VocabularyRepository
+    private val vocabularyRepository: VocabularyRepository,
+    private val ttsManager: TtsManager
 ) : ViewModel() {
     
     private val _filter = MutableStateFlow(VocabularyFilter.ALL)
@@ -99,6 +101,13 @@ class VocabularyViewModel @Inject constructor(
         viewModelScope.launch {
             vocabularyRepository.updateReviewStatus(vocabulary.id)
         }
+    }
+    
+    /**
+     * 朗读单词
+     */
+    fun speakWord(word: String) {
+        ttsManager.speakWord(word)
     }
     
     fun getExportText(): String {

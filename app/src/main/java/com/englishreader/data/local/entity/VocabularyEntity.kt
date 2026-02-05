@@ -17,5 +17,9 @@ data class VocabularyEntity(
     val savedAt: Long = System.currentTimeMillis(),
     val reviewCount: Int = 0,
     val lastReviewAt: Long? = null,
-    val isMastered: Boolean = false
+    val isMastered: Boolean = false,
+    // 间隔重复算法 (Spaced Repetition) 字段
+    val nextReviewAt: Long = System.currentTimeMillis(),  // 下次复习时间
+    val easeFactor: Float = 2.5f,                         // 难度因子 (SM-2 默认 2.5)
+    val interval: Int = 0                                  // 复习间隔（天）
 )

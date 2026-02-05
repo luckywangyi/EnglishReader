@@ -5,6 +5,10 @@ import com.englishreader.domain.model.RssSource
 import com.prof18.rssparser.RssParser
 import com.prof18.rssparser.model.RssChannel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
@@ -18,6 +22,8 @@ class RssService @Inject constructor(
     private val rssParser: RssParser,
     private val htmlParser: HtmlParser
 ) {
+    // 限制同时进行的网络请求数量，避免过多并发导致网络拥塞
+    private val concurrencySemaphore = Semaphore(5)
     
     suspend fun fetchArticles(source: RssSource): Result<List<ArticleEntity>> {
         return withContext(Dispatchers.IO) {
@@ -33,14 +39,19 @@ class RssService @Inject constructor(
     
     suspend fun fetchAllArticles(sources: List<RssSource>): List<ArticleEntity> {
         return withContext(Dispatchers.IO) {
-            sources.mapNotNull { source ->
-                try {
-                    val channel = rssParser.getRssChannel(source.url)
-                    parseChannel(channel, source)
-                } catch (e: Exception) {
-                    null
+            // 使用 async 并行请求所有 RSS 源，通过 Semaphore 限制并发数
+            sources.map { source ->
+                async {
+                    concurrencySemaphore.withPermit {
+                        try {
+                            val channel = rssParser.getRssChannel(source.url)
+                            parseChannel(channel, source)
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+                    }
                 }
-            }.flatten()
+            }.awaitAll().flatten()
         }
     }
     

@@ -20,7 +20,7 @@ class HtmlParser @Inject constructor() {
             try {
                 val doc = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (Android; Mobile)")
-                    .timeout(30000)
+                    .timeout(10000)  // 缩短超时时间从30秒到10秒
                     .get()
                 
                 val content = extractMainContent(doc)

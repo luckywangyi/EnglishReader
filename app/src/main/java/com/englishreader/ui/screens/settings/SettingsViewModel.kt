@@ -2,7 +2,7 @@ package com.englishreader.ui.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.englishreader.data.remote.gemini.GeminiService
+import com.englishreader.data.remote.ai.AiService
 import com.englishreader.data.repository.SettingsRepository
 import com.englishreader.worker.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val geminiService: GeminiService,
+    private val aiService: AiService,
     private val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
     
@@ -52,7 +52,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _saveState.value = SaveState.Saving
             settingsRepository.saveApiKey(key)
-            geminiService.resetModel()
+            aiService.resetModel()
             _saveState.value = SaveState.Saved
             
             // Reset state after delay
@@ -65,16 +65,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _testState.value = TestState.Testing
             
-            // Temporarily save the key
-            settingsRepository.saveApiKey(key)
-            geminiService.resetModel()
-            
-            // Test with a simple translation
-            val result = geminiService.translate("hello")
+            // 直接使用传入的 key 测试，不保存
+            val result = aiService.testConnectionWithKey(key)
             
             _testState.value = result.fold(
                 onSuccess = { TestState.Success },
-                onFailure = { TestState.Error(it.message ?: "Connection failed") }
+                onFailure = { TestState.Error(it.message ?: "连接失败") }
             )
             
             // Reset state after delay

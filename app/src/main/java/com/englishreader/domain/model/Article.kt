@@ -1,6 +1,8 @@
 package com.englishreader.domain.model
 
 import com.englishreader.data.local.entity.ArticleEntity
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 data class Article(
     val id: String,
@@ -66,16 +68,37 @@ data class Article(
         }
         
         private fun parseKeywords(json: String): List<KeyWord> {
-            // Simplified parsing - in production use Gson
-            return emptyList()
+            return try {
+                val type = object : TypeToken<List<KeyWordJson>>() {}.type
+                val list: List<KeyWordJson> = Gson().fromJson(json, type)
+                list.map { KeyWord(word = it.word, meaning = it.meaning, example = null) }
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         
         private fun parseQuestions(json: String): List<ComprehensionQuestion> {
-            // Simplified parsing - in production use Gson
-            return emptyList()
+            return try {
+                val type = object : TypeToken<List<QuestionJson>>() {}.type
+                val list: List<QuestionJson> = Gson().fromJson(json, type)
+                list.map { ComprehensionQuestion(question = it.q, answer = it.a) }
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
     }
 }
+
+// JSON parsing helper classes
+private data class KeyWordJson(
+    val word: String = "",
+    val meaning: String = ""
+)
+
+private data class QuestionJson(
+    val q: String = "",
+    val a: String = ""
+)
 
 enum class DifficultyLevel(val level: Int, val label: String, val labelCn: String) {
     EASY(1, "Easy", "初级"),
