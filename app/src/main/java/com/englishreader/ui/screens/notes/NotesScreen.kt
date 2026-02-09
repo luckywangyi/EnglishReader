@@ -24,6 +24,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
@@ -153,6 +158,7 @@ private fun VocabularyTabContent(viewModel: NotesViewModel) {
     val filter by viewModel.vocabularyFilter.collectAsState()
     val searchQuery by viewModel.vocabularySearchQuery.collectAsState()
     val stats by viewModel.vocabularyStats.collectAsState()
+    val viewMode by viewModel.vocabularyViewMode.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf<Vocabulary?>(null) }
     
@@ -178,22 +184,51 @@ private fun VocabularyTabContent(viewModel: NotesViewModel) {
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = filter == VocabularyFilter.ALL,
-                    onClick = { viewModel.setVocabularyFilter(VocabularyFilter.ALL) },
-                    label = { Text("全部 (${stats.total})") }
-                )
-                FilterChip(
-                    selected = filter == VocabularyFilter.UNMASTERED,
-                    onClick = { viewModel.setVocabularyFilter(VocabularyFilter.UNMASTERED) },
-                    label = { Text("学习中 (${stats.unmastered})") }
-                )
-                FilterChip(
-                    selected = filter == VocabularyFilter.MASTERED,
-                    onClick = { viewModel.setVocabularyFilter(VocabularyFilter.MASTERED) },
-                    label = { Text("已掌握 (${stats.mastered})") }
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = filter == VocabularyFilter.ALL,
+                        onClick = { viewModel.setVocabularyFilter(VocabularyFilter.ALL) },
+                        label = { Text("全部 (${stats.total})") }
+                    )
+                    FilterChip(
+                        selected = filter == VocabularyFilter.UNMASTERED,
+                        onClick = { viewModel.setVocabularyFilter(VocabularyFilter.UNMASTERED) },
+                        label = { Text("学习中 (${stats.unmastered})") }
+                    )
+                    FilterChip(
+                        selected = filter == VocabularyFilter.MASTERED,
+                        onClick = { viewModel.setVocabularyFilter(VocabularyFilter.MASTERED) },
+                        label = { Text("已掌握 (${stats.mastered})") }
+                    )
+                }
+                
+                // 视图切换按钮
+                IconButton(
+                    onClick = {
+                        viewModel.setVocabularyViewMode(
+                            if (viewMode == VocabularyViewMode.FLAT) 
+                                VocabularyViewMode.GROUPED_BY_ARTICLE 
+                            else 
+                                VocabularyViewMode.FLAT
+                        )
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (viewMode == VocabularyViewMode.FLAT)
+                            Icons.Default.Folder
+                        else
+                            Icons.Default.ViewList,
+                        contentDescription = if (viewMode == VocabularyViewMode.FLAT) "按文章分组" else "列表视图",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
         
@@ -201,6 +236,13 @@ private fun VocabularyTabContent(viewModel: NotesViewModel) {
         
         if (vocabulary.isEmpty()) {
             EmptyVocabularyState()
+        } else if (viewMode == VocabularyViewMode.GROUPED_BY_ARTICLE) {
+            // 按文章分组视图
+            GroupedVocabularyList(
+                vocabulary = vocabulary,
+                onToggleMastered = { viewModel.toggleVocabularyMastered(it) },
+                onDelete = { showDeleteDialog = it }
+            )
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
@@ -568,6 +610,81 @@ private fun SentenceCard(
                     contentDescription = null,
                     tint = if (sentence.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupedVocabularyList(
+    vocabulary: List<Vocabulary>,
+    onToggleMastered: (Vocabulary) -> Unit,
+    onDelete: (Vocabulary) -> Unit
+) {
+    // 按文章分组
+    val grouped = vocabulary.groupBy { it.articleTitle ?: "未分类" }
+    val expandedGroups = remember { mutableStateOf(setOf<String>()) }
+    
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        grouped.forEach { (articleTitle, words) ->
+            val isExpanded = expandedGroups.value.contains(articleTitle)
+            
+            item(key = "group_$articleTitle") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            expandedGroups.value = if (isExpanded) {
+                                expandedGroups.value - articleTitle
+                            } else {
+                                expandedGroups.value + articleTitle
+                            }
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = articleTitle,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${words.size} 个词汇",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
+            if (isExpanded) {
+                items(words, key = { it.id }) { vocab ->
+                    VocabularyCard(
+                        vocabulary = vocab,
+                        onToggleMastered = { onToggleMastered(vocab) },
+                        onDelete = { onDelete(vocab) }
+                    )
+                }
             }
         }
     }

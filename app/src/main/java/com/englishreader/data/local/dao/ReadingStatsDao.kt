@@ -35,6 +35,12 @@ interface ReadingStatsDao {
     """)
     suspend fun incrementStats(date: String, articles: Int, words: Int, minutes: Int, vocabulary: Int)
     
+    @Query("UPDATE reading_stats SET lookupCount = lookupCount + :count WHERE date = :date")
+    suspend fun incrementLookupCount(date: String, count: Int)
+    
+    @Query("UPDATE reading_stats SET averageWpm = :wpm WHERE date = :date")
+    suspend fun updateAverageWpm(date: String, wpm: Int)
+    
     @Query("SELECT SUM(articlesRead) FROM reading_stats")
     suspend fun getTotalArticlesRead(): Int?
     
@@ -50,4 +56,7 @@ interface ReadingStatsDao {
     
     @Query("SELECT * FROM reading_stats WHERE articlesRead > 0 ORDER BY date DESC")
     suspend fun getReadingDays(): List<ReadingStatsEntity>
+    
+    @Query("SELECT * FROM reading_stats WHERE date >= :startDate ORDER BY date ASC")
+    suspend fun getStatsFromDateSync(startDate: String): List<ReadingStatsEntity>
 }

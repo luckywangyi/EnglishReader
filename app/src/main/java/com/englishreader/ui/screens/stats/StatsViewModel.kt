@@ -37,6 +37,9 @@ class StatsViewModel @Inject constructor(
     private val _weeklyData = MutableStateFlow<List<DailyStats>>(emptyList())
     val weeklyData: StateFlow<List<DailyStats>> = _weeklyData.asStateFlow()
     
+    private val _heatmapData = MutableStateFlow<List<HeatmapDay>>(emptyList())
+    val heatmapData: StateFlow<List<HeatmapDay>> = _heatmapData.asStateFlow()
+    
     init {
         loadStats()
     }
@@ -66,6 +69,9 @@ class StatsViewModel @Inject constructor(
             
             // Load weekly data
             loadWeeklyData()
+            
+            // Load heatmap data (90 days)
+            loadHeatmapData()
         }
     }
     
@@ -156,10 +162,49 @@ class StatsViewModel @Inject constructor(
         _weeklyData.value = weekData
     }
     
+    private suspend fun loadHeatmapData() {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.DAY_OF_YEAR, -89)
+        val startDate = dateFormat.format(calendar.time)
+        
+        val statsMap = readingStatsDao.getStatsFromDateSync(startDate)
+            .associateBy { it.date }
+        
+        val days = (0..89).map { daysAgo ->
+            val cal = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, -(89 - daysAgo))
+            }
+            val dateStr = dateFormat.format(cal.time)
+            val stats = statsMap[dateStr]
+            val intensity = when {
+                stats == null -> 0
+                stats.timeSpentMinutes >= 30 || stats.articlesRead >= 3 -> 4
+                stats.timeSpentMinutes >= 15 || stats.articlesRead >= 2 -> 3
+                stats.timeSpentMinutes >= 5 || stats.articlesRead >= 1 -> 2
+                stats.vocabularySaved > 0 -> 1
+                else -> 0
+            }
+            HeatmapDay(
+                date = dateStr,
+                dayOfWeek = cal.get(Calendar.DAY_OF_WEEK), // 1=Sun, 7=Sat
+                intensity = intensity
+            )
+        }
+        
+        _heatmapData.value = days
+    }
+    
     fun refresh() {
         loadStats()
     }
 }
+
+data class HeatmapDay(
+    val date: String,
+    val dayOfWeek: Int, // 1=Sunday, 7=Saturday
+    val intensity: Int  // 0-4
+)
 
 data class OverallStatsUi(
     val totalArticlesRead: Int = 0,

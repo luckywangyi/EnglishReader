@@ -24,6 +24,10 @@ class HomeViewModel @Inject constructor(
     private val recommendationService: RecommendationService
 ) : ViewModel() {
     
+    // 继续阅读文章（未读完的）
+    private val _continueReadingArticle = MutableStateFlow<Article?>(null)
+    val continueReadingArticle: StateFlow<Article?> = _continueReadingArticle.asStateFlow()
+    
     // 今日推荐文章
     private val _recommendedArticle = MutableStateFlow<Article?>(null)
     val recommendedArticle: StateFlow<Article?> = _recommendedArticle.asStateFlow()
@@ -86,6 +90,13 @@ class HomeViewModel @Inject constructor(
             }
             // 无论是否刷新，都加载推荐
             loadRecommendation()
+            loadContinueReading()
+        }
+    }
+    
+    private fun loadContinueReading() {
+        viewModelScope.launch {
+            _continueReadingArticle.value = articleRepository.getLastInProgressArticle()
         }
     }
     

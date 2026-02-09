@@ -12,6 +12,8 @@ import com.englishreader.data.repository.TranslationResult
 import com.englishreader.data.repository.VocabularyRepository
 import com.englishreader.domain.model.Article
 import com.englishreader.util.TtsManager
+import com.englishreader.data.remote.ai.AiService
+import com.englishreader.domain.model.ComprehensionQuestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +31,8 @@ class ReaderViewModel @Inject constructor(
     private val vocabularyRepository: VocabularyRepository,
     private val sentenceRepository: SentenceRepository,
     private val settingsRepository: SettingsRepository,
-    private val ttsManager: TtsManager
+    private val ttsManager: TtsManager,
+    private val aiService: AiService
 ) : ViewModel() {
     
     private val articleId: String = savedStateHandle.get<String>("articleId") ?: ""
@@ -54,6 +57,13 @@ class ReaderViewModel @Inject constructor(
 
     private val _fullContentFetchResult = MutableStateFlow<FullContentFetchResult?>(null)
     val fullContentFetchResult: StateFlow<FullContentFetchResult?> = _fullContentFetchResult.asStateFlow()
+    
+    // Quiz state
+    private val _quizState = MutableStateFlow<QuizState>(QuizState.Hidden)
+    val quizState: StateFlow<QuizState> = _quizState.asStateFlow()
+    
+    // 记录查词次数（用于查词率统计）
+    private var lookupCount = 0
     
     private var readingStartTime: Long = 0
     
@@ -89,6 +99,7 @@ class ReaderViewModel @Inject constructor(
     }
     
     fun translate(text: String) {
+        lookupCount++
         viewModelScope.launch {
             _translationState.value = TranslationState.Loading
             
@@ -224,14 +235,90 @@ class ReaderViewModel @Inject constructor(
         
         // 至少阅读1分钟才记录
         if (readingTimeMinutes >= 1) {
+            val wordCount = article.value?.wordCount ?: 0
+            val wpm = if (readingTimeMinutes > 0) wordCount / readingTimeMinutes else 0
+            
             viewModelScope.launch {
                 articleRepository.recordReadingTime(readingTimeMinutes)
+                // 记录查词率和阅读速度
+                if (lookupCount > 0 || wpm > 0) {
+                    articleRepository.recordLookupAndWpm(lookupCount, wpm)
+                }
             }
         }
         
         // 重置开始时间，避免重复记录
         readingStartTime = 0
     }
+    
+    // ==================== Quiz（读后三问） ====================
+    
+    /**
+     * 当阅读进度 >= 90% 时触发显示 Quiz
+     */
+    fun onReadingProgressHigh() {
+        if (_quizState.value != QuizState.Hidden) return
+        val art = article.value ?: return
+        if (art.questions.isNotEmpty()) {
+            _quizState.value = QuizState.Ready(art.questions)
+        } else if (art.isAnalyzed) {
+            // 已分析但无问题
+            _quizState.value = QuizState.NoQuestions
+        }
+        // 未分析时不显示 quiz
+    }
+    
+    fun submitQuizAnswer(questionIndex: Int, userAnswer: String) {
+        val state = _quizState.value
+        if (state !is QuizState.Ready) return
+        val question = state.questions.getOrNull(questionIndex) ?: return
+        
+        viewModelScope.launch {
+            _quizState.value = QuizState.Evaluating(state.questions, questionIndex)
+            
+            val prompt = """
+                问题: ${question.question}
+                参考答案: ${question.answer}
+                用户回答: $userAnswer
+                
+                请用中文给出简短的反馈（1-2句话），判断用户的回答是否正确，如果偏了就指出要点。不要重复问题。
+            """.trimIndent()
+            
+            val feedback = try {
+                val result = aiService.translate(prompt) // 复用 translate 的通用 API 调用
+                result.getOrDefault("回答不错！")
+            } catch (e: Exception) {
+                if (userAnswer.lowercase().contains(question.answer.lowercase().take(10))) {
+                    "回答正确！"
+                } else {
+                    "参考答案：${question.answer}"
+                }
+            }
+            
+            val newAnswers = state.userAnswers.toMutableMap()
+            newAnswers[questionIndex] = QuizAnswer(userAnswer, feedback)
+            _quizState.value = QuizState.Ready(
+                questions = state.questions,
+                userAnswers = newAnswers
+            )
+        }
+    }
+    
+    fun getReadingSummary(): ReadingSummary {
+        val timeMs = if (readingStartTime > 0) System.currentTimeMillis() - readingStartTime else 0
+        val minutes = (timeMs / 60000).toInt().coerceAtLeast(1)
+        val wordCount = article.value?.wordCount ?: 0
+        val wpm = if (minutes > 0) wordCount / minutes else 0
+        val lookupRate = if (wordCount > 0) lookupCount.toFloat() / wordCount * 100 else 0f
+        return ReadingSummary(
+            readingTimeMinutes = minutes,
+            newWordsCount = lookupCount,
+            wpm = wpm,
+            lookupRate = lookupRate
+        )
+    }
+    
+    fun getLookupCount(): Int = lookupCount
     
     override fun onCleared() {
         super.onCleared()
@@ -262,3 +349,30 @@ sealed class TranslationState {
     data object SavedWord : TranslationState()
     data object SavedSentence : TranslationState()
 }
+
+// ==================== Quiz States ====================
+
+data class QuizAnswer(
+    val userAnswer: String,
+    val feedback: String
+)
+
+sealed class QuizState {
+    data object Hidden : QuizState()
+    data object NoQuestions : QuizState()
+    data class Ready(
+        val questions: List<ComprehensionQuestion>,
+        val userAnswers: Map<Int, QuizAnswer> = emptyMap()
+    ) : QuizState()
+    data class Evaluating(
+        val questions: List<ComprehensionQuestion>,
+        val evaluatingIndex: Int
+    ) : QuizState()
+}
+
+data class ReadingSummary(
+    val readingTimeMinutes: Int,
+    val newWordsCount: Int,
+    val wpm: Int,
+    val lookupRate: Float
+)

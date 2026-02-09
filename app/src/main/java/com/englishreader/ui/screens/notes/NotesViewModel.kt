@@ -24,6 +24,10 @@ enum class VocabularyFilter {
     ALL, UNMASTERED, MASTERED
 }
 
+enum class VocabularyViewMode {
+    FLAT, GROUPED_BY_ARTICLE
+}
+
 enum class SentenceFilter {
     ALL, FAVORITES
 }
@@ -41,6 +45,9 @@ class NotesViewModel @Inject constructor(
     // Vocabulary state
     private val _vocabularyFilter = MutableStateFlow(VocabularyFilter.ALL)
     val vocabularyFilter: StateFlow<VocabularyFilter> = _vocabularyFilter.asStateFlow()
+    
+    private val _vocabularyViewMode = MutableStateFlow(VocabularyViewMode.FLAT)
+    val vocabularyViewMode: StateFlow<VocabularyViewMode> = _vocabularyViewMode.asStateFlow()
     
     private val _vocabularySearchQuery = MutableStateFlow("")
     val vocabularySearchQuery: StateFlow<String> = _vocabularySearchQuery.asStateFlow()
@@ -145,6 +152,10 @@ class NotesViewModel @Inject constructor(
     // Vocabulary actions
     fun setVocabularyFilter(filter: VocabularyFilter) {
         _vocabularyFilter.value = filter
+    }
+    
+    fun setVocabularyViewMode(mode: VocabularyViewMode) {
+        _vocabularyViewMode.value = mode
     }
     
     fun setVocabularySearchQuery(query: String) {

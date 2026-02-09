@@ -18,6 +18,16 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
+/**
+ * 主题模式枚举
+ * LIGHT: 浅色模式（暖白）
+ * DARK: 深色模式（深灰）
+ * SEPIA: 护眼模式（暖黄纸张色温）
+ */
+enum class ThemeMode {
+    LIGHT, DARK, SEPIA
+}
+
 // Apple-inspired Light Color Scheme
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
@@ -74,6 +84,34 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = OutlineVariantDark
 )
 
+// Sepia / Eye-Care Color Scheme
+private val SepiaColorScheme = lightColorScheme(
+    primary = SepiaPrimary,
+    onPrimary = SepiaOnPrimary,
+    primaryContainer = SepiaPrimaryContainer,
+    onPrimaryContainer = SepiaOnPrimaryContainer,
+    secondary = Secondary,
+    onSecondary = OnSecondary,
+    secondaryContainer = SepiaSurfaceVariant,
+    onSecondaryContainer = SepiaOnSurface,
+    tertiary = Tertiary,
+    onTertiary = OnTertiary,
+    tertiaryContainer = SepiaPrimaryContainer,
+    onTertiaryContainer = SepiaOnPrimaryContainer,
+    error = Error,
+    onError = OnError,
+    errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer,
+    background = SepiaBackground,
+    onBackground = SepiaOnBackground,
+    surface = SepiaSurface,
+    onSurface = SepiaOnSurface,
+    surfaceVariant = SepiaSurfaceVariant,
+    onSurfaceVariant = SepiaOnSurfaceVariant,
+    outline = SepiaOutline,
+    outlineVariant = SepiaOutlineVariant
+)
+
 // Apple-inspired shapes with smooth, generous corner radii
 val AppleShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -86,25 +124,31 @@ val AppleShapes = Shapes(
 @Composable
 fun EnglishReaderTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode? = null, // 如果提供，覆盖 darkTheme
     // Disable dynamic color by default for consistent Apple-like aesthetic
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val effectiveMode = themeMode ?: if (darkTheme) ThemeMode.DARK else ThemeMode.LIGHT
+    
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (effectiveMode == ThemeMode.DARK) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
+        effectiveMode == ThemeMode.SEPIA -> SepiaColorScheme
+        effectiveMode == ThemeMode.DARK -> DarkColorScheme
         else -> LightColorScheme
     }
+    
+    val isLightStatusBar = effectiveMode != ThemeMode.DARK
     
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = isLightStatusBar
         }
     }
 

@@ -229,6 +229,31 @@ class ArticleRepository @Inject constructor(
         }
     }
     
+    /**
+     * 记录查词次数和阅读速度
+     */
+    suspend fun recordLookupAndWpm(lookupCount: Int, wpm: Int) {
+        val today = dateFormat.format(Date())
+        val existingStats = readingStatsDao.getStatsForDate(today)
+        
+        if (existingStats != null) {
+            if (lookupCount > 0) {
+                readingStatsDao.incrementLookupCount(today, lookupCount)
+            }
+            if (wpm > 0) {
+                readingStatsDao.updateAverageWpm(today, wpm)
+            }
+        } else {
+            readingStatsDao.insertOrUpdateStats(
+                ReadingStatsEntity(
+                    date = today,
+                    lookupCount = lookupCount,
+                    averageWpm = wpm
+                )
+            )
+        }
+    }
+    
     suspend fun updateFavoriteStatus(id: String, isFavorite: Boolean) {
         articleDao.updateFavoriteStatus(id, isFavorite)
     }
@@ -255,6 +280,10 @@ class ArticleRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    
+    suspend fun getLastInProgressArticle(): Article? {
+        return articleDao.getLastInProgressArticle()?.let { Article.fromEntity(it) }
     }
     
     suspend fun getArticleCount(): Int = articleDao.getArticleCount()

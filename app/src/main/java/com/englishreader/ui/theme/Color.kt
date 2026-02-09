@@ -30,12 +30,12 @@ val OnError = Color(0xFFFFFFFF)
 val ErrorContainer = Color(0xFFFFEDEB)
 val OnErrorContainer = Color(0xFF410002)
 
-// Surfaces - iOS Light Gray System
-val Background = Color(0xFFF2F2F7)
-val OnBackground = Color(0xFF1D1D1F)
-val Surface = Color(0xFFFFFFFF)
-val OnSurface = Color(0xFF1D1D1F)
-val SurfaceVariant = Color(0xFFF5F5F7)
+// Surfaces - Warm tones for comfortable reading
+val Background = Color(0xFFFAFAF8)          // 暖白，替代纯白 #F2F2F7
+val OnBackground = Color(0xFF1A1A1A)         // 深灰，替代纯黑 #1D1D1F
+val Surface = Color(0xFFFCFCFA)              // 暖白表面，替代纯白
+val OnSurface = Color(0xFF1A1A1A)            // 深灰正文
+val SurfaceVariant = Color(0xFFF5F5F3)       // 暖灰变体
 val OnSurfaceVariant = Color(0xFF86868B)
 val Outline = Color(0xFFD1D1D6)
 val OutlineVariant = Color(0xFFE5E5EA)
@@ -64,10 +64,10 @@ val OnErrorDark = Color(0xFFFFFFFF)
 val ErrorContainerDark = Color(0xFF93000A)
 val OnErrorContainerDark = Color(0xFFFFDAD6)
 
-val BackgroundDark = Color(0xFF000000)
-val OnBackgroundDark = Color(0xFFFFFFFF)
+val BackgroundDark = Color(0xFF121212)          // 深灰，替代纯黑，避免 OLED 拖影
+val OnBackgroundDark = Color(0xFFE0E0E0)         // 柔白，替代纯白，保护眼睛
 val SurfaceDark = Color(0xFF1C1C1E)
-val OnSurfaceDark = Color(0xFFFFFFFF)
+val OnSurfaceDark = Color(0xFFE0E0E0)            // 柔白正文
 val SurfaceVariantDark = Color(0xFF2C2C2E)
 val OnSurfaceVariantDark = Color(0xFF98989D)
 val OutlineDark = Color(0xFF48484A)
@@ -86,6 +86,23 @@ val GlassShadow = Color(0x14000000)          // 8% black shadow
 // Dark mode glass
 val GlassBackgroundDark = Color(0xCC1C1C1E)  // 80% dark surface
 val GlassBorderDark = Color(0x33FFFFFF)      // 20% white border
+
+// =============================================================================
+// Sepia / Eye-Care Mode Colors (Kindle-like warm tones)
+// =============================================================================
+
+val SepiaBackground = Color(0xFFF5EDDC)          // 暖黄纸张背景
+val SepiaOnBackground = Color(0xFF3D3229)         // 深褐正文
+val SepiaSurface = Color(0xFFF8F0E0)              // 暖黄表面
+val SepiaOnSurface = Color(0xFF3D3229)            // 深褐正文
+val SepiaSurfaceVariant = Color(0xFFEDE5D4)       // 暖黄变体
+val SepiaOnSurfaceVariant = Color(0xFF6B5D4E)     // 中褐辅助文字
+val SepiaPrimary = Color(0xFF8B6914)              // 暖金主题色
+val SepiaOnPrimary = Color(0xFFFFFFFF)
+val SepiaPrimaryContainer = Color(0xFFEDE0C0)
+val SepiaOnPrimaryContainer = Color(0xFF3D2E00)
+val SepiaOutline = Color(0xFFD4C8B0)
+val SepiaOutlineVariant = Color(0xFFE0D6C2)
 
 // =============================================================================
 // Refined Difficulty Colors (Muted, Apple-like)

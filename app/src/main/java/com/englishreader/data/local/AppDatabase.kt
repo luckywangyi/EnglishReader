@@ -23,7 +23,7 @@ import com.englishreader.data.local.entity.VocabularyEntity
         SentenceEntity::class,
         CustomRssSourceEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +76,15 @@ abstract class AppDatabase : RoomDatabase() {
                 addColumnIfNotExists(db, "articles", "isDownloaded", "INTEGER NOT NULL DEFAULT 0")
                 addColumnIfNotExists(db, "articles", "localImagePath", "TEXT")
                 addColumnIfNotExists(db, "articles", "downloadedAt", "INTEGER")
+            }
+        }
+        
+        // 数据库迁移：版本 4 -> 5
+        // 添加查词率和 WPM 追踪字段到 reading_stats 表
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfNotExists(db, "reading_stats", "lookupCount", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfNotExists(db, "reading_stats", "averageWpm", "INTEGER NOT NULL DEFAULT 0")
             }
         }
         

@@ -19,6 +19,7 @@ class SettingsRepository @Inject constructor(
     companion object {
         private val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         private val DARK_MODE = booleanPreferencesKey("dark_mode")
+        private val THEME_MODE = stringPreferencesKey("theme_mode") // LIGHT, DARK, SEPIA
         private val FONT_SIZE = intPreferencesKey("font_size")
         private val AUTO_REFRESH = booleanPreferencesKey("auto_refresh")
         private val READING_FONT_SIZE = intPreferencesKey("reading_font_size")
@@ -39,6 +40,10 @@ class SettingsRepository @Inject constructor(
     
     val darkMode: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[DARK_MODE] ?: false
+    }
+    
+    val themeMode: Flow<String> = dataStore.data.map { preferences ->
+        preferences[THEME_MODE] ?: "LIGHT"
     }
     
     val fontSize: Flow<Int> = dataStore.data.map { preferences ->
@@ -66,6 +71,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setDarkMode(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[DARK_MODE] = enabled
+        }
+    }
+    
+    suspend fun setThemeMode(mode: String) {
+        dataStore.edit { preferences ->
+            preferences[THEME_MODE] = mode
         }
     }
     
