@@ -1,6 +1,8 @@
 package com.englishreader.ui.screens.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,12 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OpenInNew
@@ -32,6 +36,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -40,7 +45,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +54,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -76,11 +85,23 @@ fun SettingsScreen(
     var showApiKey by remember { mutableStateOf(false) }
     
     val uriHandler = LocalUriHandler.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text("设置") }
+            LargeTopAppBar(
+                title = {
+                    Text(
+                        "设置",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -102,12 +123,12 @@ fun SettingsScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Key,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                        SettingsIconBadge(
+                            icon = Icons.Default.Key,
+                            tint = Color.White,
+                            backgroundColor = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "通义千问 API 配置",
                             style = MaterialTheme.typography.titleMedium,
@@ -283,14 +304,10 @@ fun SettingsScreen(
                 }
             }
             
-            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
             
             // RSS 源管理
-            Text(
-                text = "内容设置",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            SettingsSectionHeader(title = "内容设置")
             
             Card(
                 onClick = onNavigateToRssManage,
@@ -306,10 +323,10 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.RssFeed,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        SettingsIconBadge(
+                            icon = Icons.Default.RssFeed,
+                            tint = Color.White,
+                            backgroundColor = Color(0xFFFF9500)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
@@ -333,14 +350,10 @@ fun SettingsScreen(
                 }
             }
             
-            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
             
             // Display Settings
-            Text(
-                text = "显示设置",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            SettingsSectionHeader(title = "显示设置")
             
             // Dark Mode
             Card(
@@ -356,10 +369,10 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.DarkMode,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        SettingsIconBadge(
+                            icon = Icons.Default.DarkMode,
+                            tint = Color.White,
+                            backgroundColor = Color(0xFF5856D6)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
@@ -394,10 +407,10 @@ fun SettingsScreen(
                         .padding(16.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.FormatSize,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        SettingsIconBadge(
+                            icon = Icons.Default.FormatSize,
+                            tint = Color.White,
+                            backgroundColor = Color(0xFF34C759)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
@@ -432,14 +445,10 @@ fun SettingsScreen(
                 }
             }
             
-            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
             
             // Reading Reminder Settings
-            Text(
-                text = "阅读提醒",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            SettingsSectionHeader(title = "阅读提醒")
             
             Card(
                 colors = CardDefaults.cardColors(
@@ -454,10 +463,10 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            SettingsIconBadge(
+                                icon = Icons.Default.Notifications,
+                                tint = Color.White,
+                                backgroundColor = Color(0xFFFF3B30)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -531,14 +540,10 @@ fun SettingsScreen(
                 }
             }
             
-            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
             
             // About
-            Text(
-                text = "关于",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            SettingsSectionHeader(title = "关于")
             
             Card(
                 colors = CardDefaults.cardColors(
@@ -550,18 +555,28 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    Text(
-                        text = "English Reader",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "版本 1.0.0",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SettingsIconBadge(
+                            icon = Icons.Default.Info,
+                            tint = Color.White,
+                            backgroundColor = MaterialTheme.colorScheme.tertiary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "English Reader",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "版本 1.0.0",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     Text(
                         text = "一款专为英语学习者设计的沉浸式阅读应用，帮助你通过阅读高质量英文内容提升英语能力。",
@@ -581,4 +596,42 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+// =============================================================================
+// Reusable Settings Components
+// =============================================================================
+
+@Composable
+private fun SettingsIconBadge(
+    icon: ImageVector,
+    tint: Color,
+    backgroundColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
 }

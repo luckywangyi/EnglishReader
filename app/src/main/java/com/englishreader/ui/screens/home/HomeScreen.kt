@@ -224,39 +224,48 @@ private fun MinimalHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
-            onClick = onFilterClick,
-            modifier = Modifier.size(44.dp)
-        ) {
-            Icon(
-                Icons.Default.FilterList,
-                contentDescription = stringResource(R.string.home_filter_title),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         
-        Spacer(modifier = Modifier.width(4.dp))
-        
-        IconButton(
-            onClick = onRefreshClick,
-            enabled = !isRefreshing,
-            modifier = Modifier.size(44.dp)
-        ) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else {
+        Row {
+            IconButton(
+                onClick = onFilterClick,
+                modifier = Modifier.size(44.dp)
+            ) {
                 Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = stringResource(R.string.refresh),
+                    Icons.Default.FilterList,
+                    contentDescription = stringResource(R.string.home_filter_title),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            
+            Spacer(modifier = Modifier.width(4.dp))
+            
+            IconButton(
+                onClick = onRefreshClick,
+                enabled = !isRefreshing,
+                modifier = Modifier.size(44.dp)
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = stringResource(R.string.refresh),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

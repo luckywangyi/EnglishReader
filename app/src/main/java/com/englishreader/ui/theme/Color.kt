@@ -69,7 +69,7 @@ val OnBackgroundDark = Color(0xFFE0E0E0)         // 柔白，替代纯白，保�
 val SurfaceDark = Color(0xFF1C1C1E)
 val OnSurfaceDark = Color(0xFFE0E0E0)            // 柔白正文
 val SurfaceVariantDark = Color(0xFF2C2C2E)
-val OnSurfaceVariantDark = Color(0xFF98989D)
+val OnSurfaceVariantDark = Color(0xFFAEAEB2)     // 提亮辅助文字，增强可读性
 val OutlineDark = Color(0xFF48484A)
 val OutlineVariantDark = Color(0xFF38383A)
 

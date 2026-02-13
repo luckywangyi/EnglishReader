@@ -49,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,12 +88,17 @@ import androidx.compose.ui.window.PopupProperties
 import com.englishreader.domain.model.Article
 import com.englishreader.domain.model.ComprehensionQuestion
 import com.englishreader.ui.components.DifficultyBadge
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+
+// 预编译正则，避免每次重组都创建新实例
+private val SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?])\\s+")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,7 +128,7 @@ fun ReaderScreen(
         }
     }
     
-    // Calculate reading progress
+    // Calculate reading progress — 只用于进度条显示，轻量
     val readProgress by remember {
         derivedStateOf {
             if (scrollState.maxValue > 0) {
@@ -131,14 +137,28 @@ fun ReaderScreen(
         }
     }
     
-    // Update progress when scrolling
-    LaunchedEffect(readProgress) {
-        if (readProgress > 0.1f) {
-            viewModel.updateReadProgress(readProgress)
+    // 派生布尔值：避免 Column 内部读取浮点 readProgress 导致逐像素重组
+    val isReadingAlmostDone by remember {
+        derivedStateOf { readProgress > 0.9f }
+    }
+    
+    // 节流：用 snapshotFlow + debounce 来避免每帧都写数据库
+    var hasTriggeredQuiz by remember { mutableStateOf(false) }
+    @OptIn(FlowPreview::class)
+    LaunchedEffect(scrollState) {
+        snapshotFlow { 
+            if (scrollState.maxValue > 0) scrollState.value.toFloat() / scrollState.maxValue.toFloat() else 0f 
         }
-        if (readProgress > 0.9f) {
-            viewModel.onReadingProgressHigh()
-        }
+            .debounce(500L) // 500ms 内只取最后一个值
+            .collect { progress ->
+                if (progress > 0.1f) {
+                    viewModel.updateReadProgress(progress)
+                }
+                if (progress > 0.9f && !hasTriggeredQuiz) {
+                    hasTriggeredQuiz = true
+                    viewModel.onReadingProgressHigh()
+                }
+            }
     }
     
     LaunchedEffect(fullContentFetchResult) {
@@ -167,16 +187,17 @@ fun ReaderScreen(
     LaunchedEffect(translationState) {
         when (translationState) {
             is TranslationState.Loading -> {
-                val text = (translationState as? TranslationState.Loading)
-                // Loading 时也展开 sheet（对句子有效）
-                scope.launch { bottomSheetState.expand() }
+                // 不在 Loading 时展开 sheet，避免单词翻译出现"闪一下蓝框"
+                // sheet 只在确认是句子结果后再展开
             }
             is TranslationState.Success -> {
                 val isWord = (translationState as TranslationState.Success).original.trim().split(Regex("\\s+")).size <= 1
                 if (isWord) {
                     showWordPopup = true
-                    // 隐藏 bottom sheet
-                    scope.launch { bottomSheetState.hide() }
+                    // 确保 sheet 是隐藏的（可能之前因句子翻译展开过）
+                    if (bottomSheetState.currentValue != SheetValue.Hidden) {
+                        scope.launch { bottomSheetState.hide() }
+                    }
                 } else {
                     showWordPopup = false
                     scope.launch { bottomSheetState.expand() }
@@ -397,7 +418,7 @@ fun ReaderScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                     
                     // 阅读完成摘要卡片
-                    if (readProgress > 0.9f) {
+                    if (isReadingAlmostDone) {
                         ReadingCompletionCard(
                             summary = viewModel.getReadingSummary()
                         )
@@ -553,15 +574,17 @@ private fun ArticleContent(
     onWordClick: (String) -> Unit,
     onSentenceClick: (String) -> Unit
 ) {
-    // Split content into paragraphs
-    val paragraphs = content.split("\n\n").filter { it.isNotBlank() }
+    // 缓存段落分割结果，只在 content 变化时重新分割
+    val paragraphs = remember(content) {
+        content.split("\n\n").filter { it.isNotBlank() }.map { it.trim() }
+    }
     
     // 段距与字体大小成比例: fontSize * 1.2
     val paragraphSpacing = (fontSize * 1.2f).dp
     Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacing)) {
         paragraphs.forEach { paragraph ->
             ClickableParagraph(
-                text = paragraph.trim(),
+                text = paragraph,
                 fontSize = fontSize,
                 onWordClick = onWordClick,
                 onSentenceClick = onSentenceClick
@@ -582,60 +605,24 @@ private fun ClickableParagraph(
     var selectionEnd by remember { mutableStateOf<Int?>(null) }
     val highlightScope = rememberCoroutineScope()
     
-    // 将段落分割为句子
-    val sentences = text.split(Regex("(?<=[.!?])\\s+"))
-    
-    val annotatedString = buildAnnotatedString {
-        var globalIndex = 0
-        
-        sentences.forEachIndexed { sentenceIndex, sentence ->
-            val sentenceStart = globalIndex
-            
-            // 为整个句子添加注解
-            pushStringAnnotation(tag = "SENTENCE", annotation = sentence.trim())
-            
-            // 分割句子中的单词
-            val tokens = sentence.split(Regex("(?<=\\s)|(?=\\s)|(?<=[.,!?;:\"'()\\[\\]{}])|(?=[.,!?;:\"'()\\[\\]{}])"))
-            
-            tokens.forEach { token ->
-                val cleanWord = token.trim()
-                if (cleanWord.isNotEmpty() && cleanWord.matches(Regex("[a-zA-Z]+"))) {
-                    pushStringAnnotation(tag = "WORD", annotation = cleanWord)
-                    append(token)
-                    pop()
-                } else {
-                    append(token)
-                }
-                globalIndex += token.length
-            }
-            
-            pop() // 结束句子注解
-            
-            // 句子之间添加空格
-            if (sentenceIndex < sentences.size - 1) {
-                append(" ")
-                globalIndex += 1
-            }
-        }
-    }
-    
-    // 根据 selectionStart / selectionEnd 构建带高亮的文本
+    // 高亮仅在选区变化时才重建，正常滑动时 selectionStart/End 都是 null
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-    val displayString = remember(annotatedString, selectionStart, selectionEnd) {
-        if (selectionStart != null && selectionEnd != null) {
-            val textValue = annotatedString.text
-            val s = min(selectionStart!!, selectionEnd!!).coerceIn(0, textValue.length)
-            val e = max(selectionStart!!, selectionEnd!!).coerceIn(0, textValue.length)
-            if (s < e) {
+    val displayString = remember(text, selectionStart, selectionEnd) {
+        val s = selectionStart
+        val e = selectionEnd
+        if (s != null && e != null) {
+            val lo = min(s, e).coerceIn(0, text.length)
+            val hi = max(s, e).coerceIn(0, text.length)
+            if (lo < hi) {
                 buildAnnotatedString {
-                    append(annotatedString)
-                    addStyle(SpanStyle(background = highlightColor), s, e)
+                    append(text)
+                    addStyle(SpanStyle(background = highlightColor), lo, hi)
                 }
             } else {
-                annotatedString
+                buildAnnotatedString { append(text) }
             }
         } else {
-            annotatedString
+            buildAnnotatedString { append(text) }
         }
     }
     
@@ -646,31 +633,24 @@ private fun ClickableParagraph(
             lineHeight = (fontSize * 1.75).sp,
             fontFamily = FontFamily.Serif
         ),
-        textAlign = TextAlign.Justify,
         onTextLayout = { textLayoutResult = it },
         modifier = Modifier.pointerInput(Unit) {
             detectDragGesturesAfterLongPress(
                 onDragStart = { offset ->
                     textLayoutResult?.let { layoutResult ->
                         val position = layoutResult.getOffsetForPosition(offset)
-                        val wordAnnotation = annotatedString.getStringAnnotations(
-                            tag = "WORD",
-                            start = position,
-                            end = position
-                        ).firstOrNull()
-                        if (wordAnnotation != null) {
-                            selectionStart = wordAnnotation.start
-                            selectionEnd = wordAnnotation.end
-                        } else {
-                            selectionStart = position
-                            selectionEnd = position
-                        }
+                        // 直接用字符级扫描找到当前词的边界，比注解更准确
+                        val (wordStart, wordEnd) = findWordBoundary(text, position)
+                        selectionStart = wordStart
+                        selectionEnd = wordEnd
                     }
                 },
                 onDrag = { change, _ ->
                     textLayoutResult?.let { layoutResult ->
                         val position = layoutResult.getOffsetForPosition(change.position)
-                        selectionEnd = position
+                        // 拖动时扩展到整个词的边界，而不是精确到字符
+                        val (_, wordEnd) = findWordBoundary(text, position)
+                        selectionEnd = wordEnd
                     }
                 },
                 onDragCancel = {
@@ -681,43 +661,19 @@ private fun ClickableParagraph(
                     val start = selectionStart
                     val end = selectionEnd
                     if (start != null && end != null) {
-                        val textValue = annotatedString.text
-                        val rangeStart = min(start, end).coerceIn(0, textValue.length)
-                        val rangeEnd = max(start, end).coerceIn(0, textValue.length)
-                        val rangeEndExclusive = if (rangeEnd > rangeStart) {
-                            min(rangeEnd + 1, textValue.length)
-                        } else {
-                            rangeEnd
-                        }
-                        val rawSelection = if (rangeStart == rangeEndExclusive) {
-                            ""
-                        } else {
-                            textValue.substring(rangeStart, rangeEndExclusive)
-                        }
-                        val normalized = rawSelection.replace(Regex("\\s+"), " ").trim()
-                        if (normalized.isNotEmpty()) {
-                            val wordCandidate = normalized.trim { !it.isLetter() }
-                            if (wordCandidate.matches(Regex("[A-Za-z]+"))) {
-                                onWordClick(wordCandidate)
-                            } else {
-                                onSentenceClick(normalized)
-                            }
-                        } else {
-                            val position = rangeStart
-                            annotatedString.getStringAnnotations(
-                                tag = "WORD",
-                                start = position,
-                                end = position
-                            ).firstOrNull()?.let { annotation ->
-                                onWordClick(annotation.item)
-                                return@detectDragGesturesAfterLongPress
-                            }
-                            annotatedString.getStringAnnotations(
-                                tag = "SENTENCE",
-                                start = position,
-                                end = position
-                            ).firstOrNull()?.let { annotation ->
-                                onSentenceClick(annotation.item)
+                        val lo = min(start, end).coerceIn(0, text.length)
+                        val hi = max(start, end).coerceIn(0, text.length)
+                        
+                        if (lo < hi) {
+                            val selected = text.substring(lo, hi).trim()
+                            if (selected.isNotEmpty()) {
+                                // 判断选中的内容是单词还是短语/句子
+                                val cleaned = selected.trim { !it.isLetter() && it != '\'' && it != '-' }
+                                if (cleaned.isNotEmpty() && cleaned.all { it.isLetter() || it == '\'' || it == '-' }) {
+                                    onWordClick(cleaned)
+                                } else {
+                                    onSentenceClick(selected)
+                                }
                             }
                         }
                     }
@@ -731,6 +687,42 @@ private fun ClickableParagraph(
             )
         }
     )
+}
+
+/**
+ * 根据字符位置找到所在单词的边界 [start, end)
+ * 比基于正则注解的方式更准确，直接在原始文本上操作
+ */
+private fun findWordBoundary(text: String, offset: Int): Pair<Int, Int> {
+    if (text.isEmpty()) return Pair(0, 0)
+    val pos = offset.coerceIn(0, text.length - 1)
+    
+    // 如果当前位置不是字母，尝试往左找一个字母（用户可能点在了词的右侧空白处）
+    var anchor = pos
+    if (anchor < text.length && !text[anchor].isLetter()) {
+        if (anchor > 0 && text[anchor - 1].isLetter()) {
+            anchor = anchor - 1
+        }
+    }
+    
+    // 如果仍然不是字母，返回原始位置
+    if (anchor >= text.length || !text[anchor].isLetter()) {
+        return Pair(offset.coerceIn(0, text.length), offset.coerceIn(0, text.length))
+    }
+    
+    // 向左扫描到词的起始位置
+    var start = anchor
+    while (start > 0 && (text[start - 1].isLetter() || text[start - 1] == '\'' || text[start - 1] == '-')) {
+        start--
+    }
+    
+    // 向右扫描到词的结束位置
+    var end = anchor + 1
+    while (end < text.length && (text[end].isLetter() || text[end] == '\'' || text[end] == '-')) {
+        end++
+    }
+    
+    return Pair(start, end)
 }
 
 // ==================== 单词轻量浮窗 ====================
@@ -1252,11 +1244,11 @@ private fun QuizQuestionCard(
  */
 private fun extractContextSentence(content: String, word: String): String? {
     if (content.isBlank() || word.isBlank()) return null
-    // 按句号/问号/叹号分句
-    val sentences = content.split(Regex("(?<=[.!?])\\s+"))
+    val sentences = content.split(SENTENCE_SPLIT_REGEX)
     val target = word.lowercase()
+    val wordBoundaryRegex = Regex("\\b${Regex.escape(target)}\\b")
     return sentences.firstOrNull { sentence ->
-        sentence.lowercase().contains(Regex("\\b${Regex.escape(target)}\\b"))
+        sentence.lowercase().contains(wordBoundaryRegex)
     }?.trim()
 }
 

@@ -1,7 +1,10 @@
 package com.englishreader.ui.screens.notes
 
 import android.content.Intent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -46,7 +50,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +60,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -74,20 +80,32 @@ fun NotesScreen(
     val currentTab by viewModel.currentTab.collectAsState()
     val dueReviewCount by viewModel.dueReviewCount.collectAsState()
     val context = LocalContext.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text("笔记本") },
+            LargeTopAppBar(
+                title = {
+                    Text(
+                        "笔记本",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                ),
                 actions = {
                     // 开始复习按钮
                     IconButton(
                         onClick = onNavigateToFlashcard
                     ) {
-                        androidx.compose.foundation.layout.Box {
+                        Box {
                             Icon(Icons.Default.PlayArrow, contentDescription = "开始复习")
                             if (dueReviewCount > 0) {
-                                androidx.compose.foundation.layout.Box(
+                                Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .size(16.dp)
@@ -127,20 +145,48 @@ fun NotesScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Tab Row
-            TabRow(
-                selectedTabIndex = currentTab.ordinal
+            // Modern Segmented Tab Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Tab(
-                    selected = currentTab == NotesTab.VOCABULARY,
-                    onClick = { viewModel.setCurrentTab(NotesTab.VOCABULARY) },
-                    text = { Text("生词本") }
-                )
-                Tab(
-                    selected = currentTab == NotesTab.SENTENCES,
-                    onClick = { viewModel.setCurrentTab(NotesTab.SENTENCES) },
-                    text = { Text("句子摘抄") }
-                )
+                listOf(
+                    NotesTab.VOCABULARY to "生词本",
+                    NotesTab.SENTENCES to "句子摘抄"
+                ).forEach { (tab, label) ->
+                    val isSelected = currentTab == tab
+                    val bgColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        animationSpec = tween(200),
+                        label = "tab_bg"
+                    )
+                    val textColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(200),
+                        label = "tab_text"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(bgColor)
+                            .clickable { viewModel.setCurrentTab(tab) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = textColor
+                        )
+                    }
+                }
             }
             
             // Content based on tab
