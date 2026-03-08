@@ -94,4 +94,7 @@ interface ArticleDao {
     
     @Query("SELECT * FROM articles WHERE readProgress > 0.05 AND readProgress < 0.95 ORDER BY lastReadAt DESC LIMIT 1")
     suspend fun getLastInProgressArticle(): ArticleEntity?
+
+    @Query("SELECT * FROM articles ORDER BY publishedAt DESC")
+    suspend fun getAllArticlesOnce(): List<ArticleEntity>
 }

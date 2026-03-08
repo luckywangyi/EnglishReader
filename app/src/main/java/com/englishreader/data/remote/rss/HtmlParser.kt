@@ -19,8 +19,11 @@ class HtmlParser @Inject constructor() {
         return withContext(Dispatchers.IO) {
             try {
                 val doc = Jsoup.connect(url)
-                    .userAgent("Mozilla/5.0 (Android; Mobile)")
-                    .timeout(10000)  // 缩短超时时间从30秒到10秒
+                    .userAgent("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .followRedirects(true)
+                    .timeout(15000)
                     .get()
                 
                 val content = extractMainContent(doc)
@@ -94,42 +97,53 @@ class HtmlParser @Inject constructor() {
     }
     
     private fun extractMainContent(doc: Document): String {
-        // Try common article selectors
+        doc.select("script, style, nav, header, footer, aside, .ad, .ads, .advertisement, .social-share, .share-buttons, .related-posts, .comments, .sidebar, noscript, iframe").remove()
+
         val selectors = listOf(
-            "article",
-            "[role=main]",
+            "[itemprop=articleBody]",
+            "article .article-content",
+            "article .article-body",
+            "article .post-content",
+            "article .entry-content",
+            "article .story-body",
             ".article-content",
             ".article-body",
+            ".article__body",
             ".post-content",
+            ".post-body",
             ".entry-content",
             ".story-body",
+            ".story-content",
             ".content-body",
+            ".blog-post-content",
+            ".article-text",
+            "article",
+            "[role=main]",
             "main",
+            "#article-body",
+            "#story-body",
             "#content"
         )
         
         for (selector in selectors) {
-            val element = doc.selectFirst(selector)
-            if (element != null) {
-                // Remove unwanted nested elements
-                element.select("script, style, nav, .ad, .share, .related").remove()
-                
-                // Extract paragraphs
-                val paragraphs = element.select("p")
-                if (paragraphs.isNotEmpty()) {
-                    return stripReadMore(paragraphs.joinToString("\n\n") { it.text().trim() })
-                }
-                
-                // Fallback to element text
-                val text = element.text().trim()
-                if (text.length > 200) return stripReadMore(text)
+            val element = doc.selectFirst(selector) ?: continue
+            element.select(".ad, .share, .related, .newsletter, .promo, .subscription, figure figcaption").remove()
+            
+            val paragraphs = element.select("p")
+                .map { it.text().trim() }
+                .filter { it.length > 30 }
+            
+            if (paragraphs.size >= 2) {
+                return stripReadMore(paragraphs.joinToString("\n\n"))
             }
+            
+            val text = element.text().trim()
+            if (text.length > 200) return stripReadMore(text)
         }
         
-        // Fallback: get all paragraphs
         val paragraphs = doc.select("p")
             .map { it.text().trim() }
-            .filter { it.length > 50 }
+            .filter { it.length > 40 }
         
         return if (paragraphs.isNotEmpty()) {
             stripReadMore(paragraphs.joinToString("\n\n"))

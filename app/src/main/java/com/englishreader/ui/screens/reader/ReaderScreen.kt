@@ -80,7 +80,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
+import com.englishreader.data.repository.FullContentFetchResult
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -165,7 +167,7 @@ fun ReaderScreen(
     }
     
     LaunchedEffect(fullContentFetchResult) {
-        if (fullContentFetchResult == com.englishreader.data.repository.FullContentFetchResult.UPDATED) {
+        if (fullContentFetchResult == FullContentFetchResult.UPDATED) {
             viewModel.clearFullContentFetchResult()
         }
     }
@@ -320,6 +322,31 @@ fun ReaderScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+                
+                if (!isFetchingFullContent && fullContentFetchResult == FullContentFetchResult.FAILED) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "全文加载失败",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        TextButton(onClick = { viewModel.retryFetchFullContent() }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("重新加载", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }

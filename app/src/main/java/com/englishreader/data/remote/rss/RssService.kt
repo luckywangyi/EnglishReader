@@ -81,8 +81,8 @@ class RssService @Inject constructor(
             // Calculate word count
             val wordCount = content.split(Regex("\\s+")).size
             
-            // RSS 入库阶段过滤：摘要极短且无截断标记的条目直接跳过
-            if (wordCount < 30 && !hasReadMoreIndicator(content)) {
+            // RSS 入库阶段过滤：仅丢弃几乎无内容的条目（< 10 词且无截断标记）
+            if (wordCount < 10 && !hasReadMoreIndicator(content) && description.isNullOrBlank()) {
                 return@mapNotNull null
             }
             
@@ -144,9 +144,13 @@ class RssService @Inject constructor(
         val lower = content.lowercase()
         return lower.contains("continue reading") ||
             lower.contains("read more") ||
+            lower.contains("read the full") ||
+            lower.contains("full article") ||
+            lower.contains("full story") ||
+            lower.contains("view more") ||
+            lower.contains("see more") ||
             lower.contains("continue on medium") ||
             lower.contains("click here") ||
-            lower.contains("full story") ||
             lower.contains("[...]") ||
             lower.contains("…") ||
             lower.endsWith("...")

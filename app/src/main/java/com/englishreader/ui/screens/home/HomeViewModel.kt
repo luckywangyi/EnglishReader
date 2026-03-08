@@ -86,18 +86,16 @@ class HomeViewModel @Inject constructor(
     )
     
     init {
-        // 缓存优先策略：先立即显示本地缓存的文章
-        // 只在数据库为空时才自动触发网络刷新
         viewModelScope.launch {
-            // 自动清理 30 天前的过期文章（不清理收藏文章）
             articleRepository.cleanupOldArticles()
             
             val articleCount = articleRepository.getArticleCount()
             if (articleCount == 0) {
-                // 数据库为空，需要从网络获取
                 refreshArticles()
+            } else {
+                // 已有文章，后台静默预加载内容不足的文章全文
+                launch { articleRepository.prefetchAllFullContent() }
             }
-            // 无论是否刷新，都加载推荐
             loadRecommendation()
             loadContinueReading()
         }
@@ -133,7 +131,8 @@ class HomeViewModel @Inject constructor(
             val result = articleRepository.refreshArticles()
             result.fold(
                 onSuccess = { count ->
-                    // Success - articles are automatically updated via Flow
+                    // RSS 入库完成后，后台预加载全文
+                    launch { articleRepository.prefetchAllFullContent() }
                 },
                 onFailure = { e ->
                     _error.value = e.message ?: "刷新文章失败，请检查网络连接"

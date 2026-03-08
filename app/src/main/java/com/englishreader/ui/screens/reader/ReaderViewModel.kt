@@ -82,7 +82,14 @@ class ReaderViewModel @Inject constructor(
     private fun fetchFullContentIfNeeded() {
         if (articleId.isBlank()) return
         viewModelScope.launch {
-            _isFetchingFullContent.value = true
+            // 先检查本地内容是否已足够，避免显示不必要的加载状态
+            val localArticle = articleRepository.getArticleById(articleId)
+            val localWordCount = localArticle?.content?.split(Regex("\\s+"))?.size ?: 0
+            val contentAlreadySufficient = localWordCount >= 200
+
+            if (!contentAlreadySufficient) {
+                _isFetchingFullContent.value = true
+            }
             _fullContentFetchResult.value = articleRepository.fetchFullContentIfNeeded(articleId)
             _isFetchingFullContent.value = false
         }
@@ -90,6 +97,15 @@ class ReaderViewModel @Inject constructor(
 
     fun clearFullContentFetchResult() {
         _fullContentFetchResult.value = null
+    }
+
+    fun retryFetchFullContent() {
+        if (articleId.isBlank()) return
+        viewModelScope.launch {
+            _isFetchingFullContent.value = true
+            _fullContentFetchResult.value = articleRepository.forceRefreshFullContent(articleId)
+            _isFetchingFullContent.value = false
+        }
     }
     
     fun updateReadProgress(progress: Float) {

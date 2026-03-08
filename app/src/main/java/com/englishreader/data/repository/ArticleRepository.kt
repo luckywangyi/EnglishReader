@@ -15,8 +15,14 @@ import com.englishreader.data.remote.rss.RssSources
 import com.englishreader.domain.model.Article
 import com.englishreader.domain.model.Category
 import com.englishreader.domain.model.RssSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -82,13 +88,12 @@ class ArticleRepository @Inject constructor(
             val entity = articleDao.getArticleById(articleId) ?: return FullContentFetchResult.SKIPPED
             if (!shouldFetchFullContent(entity)) return FullContentFetchResult.SKIPPED
 
-            fetchAttemptedIds.add(articleId)
-
             val result = htmlParser.fetchArticleContent(entity.originalUrl)
             val content = result.getOrNull()?.content?.trim().orEmpty()
             val wordCount = content.split(Regex("\\s+")).size
 
             if (content.isBlank() || content.length <= entity.content.length) {
+                fetchAttemptedIds.add(articleId)
                 return FullContentFetchResult.SKIPPED
             }
 
@@ -104,10 +109,40 @@ class ArticleRepository @Inject constructor(
                 )
             )
 
+            fetchAttemptedIds.add(articleId)
             FullContentFetchResult.UPDATED
         } catch (e: Exception) {
-            fetchAttemptedIds.add(articleId)
             FullContentFetchResult.FAILED
+        }
+    }
+
+    suspend fun forceRefreshFullContent(articleId: String): FullContentFetchResult {
+        fetchAttemptedIds.remove(articleId)
+        return fetchFullContentIfNeeded(articleId)
+    }
+
+    /**
+     * 后台预加载：对所有需要全文的文章并发抓取内容，存入本地数据库。
+     * 限制并发数为 3，避免网络拥塞。
+     */
+    suspend fun prefetchAllFullContent() {
+        withContext(Dispatchers.IO) {
+            try {
+                val allArticles = articleDao.getAllArticlesOnce()
+                val needFetch = allArticles.filter { shouldFetchFullContent(it) }
+                if (needFetch.isEmpty()) return@withContext
+
+                val semaphore = Semaphore(3)
+                needFetch.map { entity ->
+                    async {
+                        semaphore.withPermit {
+                            try {
+                                fetchFullContentIfNeeded(entity.id)
+                            } catch (_: Exception) { }
+                        }
+                    }
+                }.awaitAll()
+            } catch (_: Exception) { }
         }
     }
     
