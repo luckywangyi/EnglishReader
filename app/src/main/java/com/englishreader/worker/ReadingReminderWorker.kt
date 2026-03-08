@@ -50,6 +50,52 @@ class MorningReminderWorker @AssistedInject constructor(
 }
 
 /**
+ * 每周学习摘要 Worker
+ * 每周日晚推送一条学习摘要通知
+ */
+@HiltWorker
+class WeeklySummaryWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val notificationHelper: NotificationHelper,
+    private val readingStatsDao: ReadingStatsDao,
+    private val settingsRepository: SettingsRepository
+) : CoroutineWorker(context, params) {
+    
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    
+    override suspend fun doWork(): Result {
+        if (!settingsRepository.isReminderEnabled()) {
+            return Result.success()
+        }
+        
+        // 计算过去 7 天的统计
+        val calendar = java.util.Calendar.getInstance()
+        calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
+        val startDate = dateFormat.format(calendar.time)
+        
+        val weekStats = readingStatsDao.getStatsFromDateSync(startDate)
+        
+        val totalArticles = weekStats.sumOf { it.articlesRead }
+        val totalVocabulary = weekStats.sumOf { it.vocabularySaved }
+        
+        // 只有本周有活动才推送
+        if (totalArticles > 0 || totalVocabulary > 0) {
+            notificationHelper.sendWeeklySummary(
+                articlesRead = totalArticles,
+                wordsLearned = totalVocabulary
+            )
+        }
+        
+        return Result.success()
+    }
+    
+    companion object {
+        const val WORK_NAME = "weekly_summary_work"
+    }
+}
+
+/**
  * 晚间阅读提醒 Worker
  * 检查今天是否有阅读，没有则发送提醒
  */

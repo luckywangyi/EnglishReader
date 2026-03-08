@@ -16,22 +16,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Spellcheck
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,10 +38,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.englishreader.ui.components.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,26 +50,32 @@ fun StatsScreen(
 ) {
     val overallStats by viewModel.overallStats.collectAsState()
     val weeklyData by viewModel.weeklyData.collectAsState()
-    val isLoaded = overallStats.isLoaded
+    val heatmapData by viewModel.heatmapData.collectAsState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text("学习统计") },
+            LargeTopAppBar(
+                title = {
+                    Text(
+                        "学习统计",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                ),
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 }
             )
         }
     ) { padding ->
-        if (!isLoaded) {
-            LoadingState(
-                modifier = Modifier.padding(padding),
-                message = "加载统计数据..."
-            )
-        } else {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -82,8 +87,9 @@ fun StatsScreen(
             item {
                 Text(
                     text = "总览",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -132,43 +138,52 @@ fun StatsScreen(
                 }
             }
             
-            // 阅读时长卡片
+            // Heatmap Calendar (近 3 个月)
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Timer,
-                        title = "累计阅读",
-                        value = formatTimeSpent(overallStats.totalTimeSpentMinutes),
-                        subtitle = if (overallStats.totalTimeSpentMinutes >= 60) "小时" else "分钟"
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.AccessTime,
-                        title = "今日阅读",
-                        value = formatTimeSpent(weeklyData.lastOrNull()?.timeSpentMinutes ?: 0),
-                        subtitle = if ((weeklyData.lastOrNull()?.timeSpentMinutes ?: 0) >= 60) "小时" else "分钟",
-                        isHighlighted = (weeklyData.lastOrNull()?.timeSpentMinutes ?: 0) > 0
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "学习热力图",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                HeatmapCalendar(data = heatmapData, streak = overallStats.currentStreak)
             }
             
-            // Weekly chart
+            // Weekly chart (保留为辅助视图)
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
                     text = "本周阅读",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 WeeklyChart(weeklyData = weeklyData)
+            }
+            
+            // 进步趋势
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "进步趋势",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                ProgressTrendsCard(overallStats = overallStats)
             }
             
             // Tips
@@ -177,7 +192,7 @@ fun StatsScreen(
                 
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -195,7 +210,6 @@ fun StatsScreen(
                 }
             }
         }
-        } // end if isLoaded
     }
 }
 
@@ -210,18 +224,28 @@ private fun StatCard(
 ) {
     Card(
         modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isHighlighted)
                 MaterialTheme.colorScheme.primaryContainer
             else
-                MaterialTheme.colorScheme.surfaceVariant
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (isHighlighted)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
+                    ),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
@@ -232,15 +256,17 @@ private fun StatCard(
                         MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
             
             Row(
                 verticalAlignment = Alignment.Bottom
@@ -270,7 +296,7 @@ private fun StatCard(
 private fun WeeklyChart(weeklyData: List<DailyStats>) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )
     ) {
         Column(
@@ -345,10 +371,230 @@ private fun DayBar(
     }
 }
 
-private fun formatTimeSpent(minutes: Int): String {
-    return when {
-        minutes >= 60 -> String.format("%.1f", minutes / 60f)
-        else -> minutes.toString()
+// ==================== 进步趋势 ====================
+
+@Composable
+private fun ProgressTrendsCard(overallStats: OverallStatsUi) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 里程碑
+            if (overallStats.masteredVocabulary > 0) {
+                val milestone = when {
+                    overallStats.masteredVocabulary >= 1000 -> "雅思核心词汇的 ${(overallStats.masteredVocabulary * 100 / 3500).coerceAtMost(100)}%"
+                    overallStats.masteredVocabulary >= 500 -> "六级核心词汇的 ${(overallStats.masteredVocabulary * 100 / 2500).coerceAtMost(100)}%"
+                    overallStats.masteredVocabulary >= 100 -> "四级核心词汇的 ${(overallStats.masteredVocabulary * 100 / 1200).coerceAtMost(100)}%"
+                    else -> null
+                }
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "已掌握 ${overallStats.masteredVocabulary} 个词汇",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (milestone != null) {
+                            Text(
+                                text = "≈ $milestone",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // 累计阅读
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.tertiary)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "累计阅读 ${overallStats.totalArticlesRead} 篇，共 ${formatNumber(overallStats.totalWordsRead)} 词",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            
+            // 学习词汇总量
+            if (overallStats.totalVocabulary > 0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.secondary)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "词汇进度：${overallStats.masteredVocabulary}/${overallStats.totalVocabulary} 已掌握",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                // 简易进度条
+                Row(
+                    modifier = Modifier.padding(start = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val progress = overallStats.masteredVocabulary.toFloat() / overallStats.totalVocabulary.coerceAtLeast(1)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==================== 热力日历 ====================
+
+@Composable
+private fun HeatmapCalendar(data: List<HeatmapDay>, streak: Int) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // 热力格子
+            if (data.isNotEmpty()) {
+                val weeks = data.chunked(7)
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    weeks.forEach { week ->
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            week.forEach { day ->
+                                val color = when (day.intensity) {
+                                    0 -> MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                    1 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                    2 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                    3 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                                    else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(color)
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 图例和连续天数
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 连续天数
+                    if (streak > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.LocalFireDepartment,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "连续 $streak 天",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+                    
+                    // 图例
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "少",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        listOf(0.15f, 0.2f, 0.4f, 0.65f, 0.9f).forEach { alpha ->
+                            val c = if (alpha < 0.2f) {
+                                MaterialTheme.colorScheme.outline.copy(alpha = alpha)
+                            } else {
+                                MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(c)
+                            )
+                        }
+                        Text(
+                            text = "多",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -130,11 +130,20 @@ val Typography = Typography(
 
 // =============================================================================
 // Reading-specific text styles (for article reader)
+// Optimized for screen reading: 1.75x line height, generous spacing
 // =============================================================================
+
+/**
+ * Reading font family: System Serif (Noto Serif on Android)
+ * To use a custom font (e.g. Literata), add font files to res/font/
+ * and replace this with:
+ * val ReadingFontFamily = FontFamily(Font(R.font.literata_regular), ...)
+ */
+val ReadingFontFamily = FontFamily.Serif
 
 val ReadingTypography = object {
     val articleTitle = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = ReadingFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 34.sp,
@@ -142,26 +151,26 @@ val ReadingTypography = object {
     )
     
     val articleBody = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = ReadingFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 18.sp,
-        lineHeight = 30.sp,
+        lineHeight = 31.5.sp, // 18 * 1.75
         letterSpacing = 0.sp
     )
     
     val articleBodyLarge = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = ReadingFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 20.sp,
-        lineHeight = 34.sp,
+        lineHeight = 35.sp, // 20 * 1.75
         letterSpacing = 0.sp
     )
     
     val articleBodySmall = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = ReadingFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
-        lineHeight = 26.sp,
+        lineHeight = 28.sp, // 16 * 1.75
         letterSpacing = 0.sp
     )
 }

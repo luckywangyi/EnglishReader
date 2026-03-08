@@ -28,6 +28,7 @@ class NotificationHelper @Inject constructor(
         
         const val NOTIFICATION_ID_MORNING = 1001
         const val NOTIFICATION_ID_EVENING = 1002
+        const val NOTIFICATION_ID_WEEKLY = 1003
         
         const val EXTRA_ARTICLE_ID = "article_id"
     }
@@ -128,6 +129,58 @@ class NotificationHelper @Inject constructor(
         
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_EVENING, notification)
+        } catch (e: SecurityException) {
+            // 权限被拒绝
+        }
+    }
+    
+    /**
+     * 发送每周学习摘要通知
+     */
+    fun sendWeeklySummary(
+        articlesRead: Int,
+        wordsLearned: Int,
+        lookupRateChange: String? = null
+    ) {
+        if (!hasNotificationPermission()) return
+        
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to", "stats")
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID_WEEKLY,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val summaryParts = mutableListOf<String>()
+        summaryParts.add("本周阅读 $articlesRead 篇")
+        if (wordsLearned > 0) {
+            summaryParts.add("掌握 $wordsLearned 个新词")
+        }
+        if (lookupRateChange != null) {
+            summaryParts.add(lookupRateChange)
+        }
+        
+        val summaryText = summaryParts.joinToString("，") + "。"
+        
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("本周学习摘要")
+            .setContentText(summaryText)
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText(summaryText)
+                .setSummaryText("点击查看详细统计"))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+        
+        try {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_WEEKLY, notification)
         } catch (e: SecurityException) {
             // 权限被拒绝
         }

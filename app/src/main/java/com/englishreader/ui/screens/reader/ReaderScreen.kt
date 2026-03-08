@@ -1,6 +1,7 @@
 package com.englishreader.ui.screens.reader
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,14 +13,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -40,7 +41,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -55,14 +55,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -71,19 +73,37 @@ import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import com.englishreader.R
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import android.widget.Toast
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.englishreader.domain.model.Article
+import com.englishreader.domain.model.ComprehensionQuestion
 import com.englishreader.ui.components.DifficultyBadge
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
+import kotlin.math.min
 
-@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
+// 预编译正则，避免每次重组都创建新实例
+private val SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?])\\s+")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(
     articleId: String,
@@ -97,45 +117,49 @@ fun ReaderScreen(
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
     val isFetchingFullContent by viewModel.isFetchingFullContent.collectAsState()
     val fullContentFetchResult by viewModel.fullContentFetchResult.collectAsState()
+    val quizState by viewModel.quizState.collectAsState()
     
-    val listState = rememberLazyListState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val scrollState = rememberScrollState()
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     
     // 离开页面时保存阅读时长
-    DisposableEffect(Unit) {
+    androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose {
             viewModel.saveReadingTime()
         }
     }
     
-    // 预先拆分段落并缓存，避免每次重组都拆分
-    val paragraphs = remember(article?.content) {
-        article?.content?.split("\n\n")?.filter { it.isNotBlank() }?.map { it.trim() } ?: emptyList()
-    }
-    
-    // 使用 LazyListState 计算阅读进度
+    // Calculate reading progress — 只用于进度条显示，轻量
     val readProgress by remember {
         derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val totalItems = layoutInfo.totalItemsCount
-            if (totalItems == 0) 0f
-            else {
-                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                (lastVisibleItem + 1).toFloat() / totalItems.toFloat()
-            }
+            if (scrollState.maxValue > 0) {
+                scrollState.value.toFloat() / scrollState.maxValue.toFloat()
+            } else 0f
         }
     }
     
-    // 节流：滚动进度写入数据库 - 防抖 1 秒，只在停止滚动后更新
-    LaunchedEffect(Unit) {
-        snapshotFlow { readProgress }
-            .distinctUntilChanged()
-            .debounce(1000L)
+    // 派生布尔值：避免 Column 内部读取浮点 readProgress 导致逐像素重组
+    val isReadingAlmostDone by remember {
+        derivedStateOf { readProgress > 0.9f }
+    }
+    
+    // 节流：用 snapshotFlow + debounce 来避免每帧都写数据库
+    var hasTriggeredQuiz by remember { mutableStateOf(false) }
+    @OptIn(FlowPreview::class)
+    LaunchedEffect(scrollState) {
+        snapshotFlow { 
+            if (scrollState.maxValue > 0) scrollState.value.toFloat() / scrollState.maxValue.toFloat() else 0f 
+        }
+            .debounce(500L) // 500ms 内只取最后一个值
             .collect { progress ->
                 if (progress > 0.1f) {
                     viewModel.updateReadProgress(progress)
+                }
+                if (progress > 0.9f && !hasTriggeredQuiz) {
+                    hasTriggeredQuiz = true
+                    viewModel.onReadingProgressHigh()
                 }
             }
     }
@@ -152,14 +176,42 @@ fun ReaderScreen(
     )
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
     
-    // Show bottom sheet when translation is available
+    // 判断翻译结果是单词还是句子
+    val isSingleWordResult = when (val state = translationState) {
+        is TranslationState.Success -> state.original.trim().split(Regex("\\s+")).size <= 1
+        else -> false
+    }
+    
+    // 单词翻译用 Popup，句子翻译用 BottomSheet
+    var showWordPopup by remember { mutableStateOf(false) }
+    
     LaunchedEffect(translationState) {
         when (translationState) {
-            is TranslationState.Loading,
-            is TranslationState.Success -> {
-                scope.launch { bottomSheetState.expand() }
+            is TranslationState.Loading -> {
+                // 不在 Loading 时展开 sheet，避免单词翻译出现"闪一下蓝框"
+                // sheet 只在确认是句子结果后再展开
             }
-            is TranslationState.SavedWord,
+            is TranslationState.Success -> {
+                val isWord = (translationState as TranslationState.Success).original.trim().split(Regex("\\s+")).size <= 1
+                if (isWord) {
+                    showWordPopup = true
+                    // 确保 sheet 是隐藏的（可能之前因句子翻译展开过）
+                    if (bottomSheetState.currentValue != SheetValue.Hidden) {
+                        scope.launch { bottomSheetState.hide() }
+                    }
+                } else {
+                    showWordPopup = false
+                    scope.launch { bottomSheetState.expand() }
+                }
+            }
+            is TranslationState.SavedWord -> {
+                scope.launch {
+                    kotlinx.coroutines.delay(800)
+                    showWordPopup = false
+                    bottomSheetState.hide()
+                    viewModel.clearTranslation()
+                }
+            }
             is TranslationState.SavedSentence -> {
                 scope.launch { 
                     kotlinx.coroutines.delay(1000)
@@ -167,7 +219,9 @@ fun ReaderScreen(
                     viewModel.clearTranslation()
                 }
             }
-            else -> {}
+            else -> {
+                showWordPopup = false
+            }
         }
     }
     
@@ -177,7 +231,10 @@ fun ReaderScreen(
             TranslationSheet(
                 state = translationState,
                 onSaveWord = { original, translation ->
-                    viewModel.saveVocabulary(original, translation)
+                    // 自动从文章内容中提取上下文句子
+                    val content = article?.content ?: ""
+                    val context = extractContextSentence(content, original)
+                    viewModel.saveVocabulary(original, translation, context)
                 },
                 onSaveSentence = { original, translation ->
                     viewModel.saveSentence(original, translation)
@@ -198,7 +255,7 @@ fun ReaderScreen(
                     title = { },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                         }
                     },
                     actions = {
@@ -217,7 +274,7 @@ fun ReaderScreen(
                                     Icons.Filled.Favorite
                                 else
                                     Icons.Outlined.FavoriteBorder,
-                                contentDescription = "收藏",
+                                contentDescription = "Favorite",
                                 tint = if (article?.isFavorite == true)
                                     MaterialTheme.colorScheme.error
                                 else
@@ -228,7 +285,7 @@ fun ReaderScreen(
                         // Open in browser
                         article?.originalUrl?.let { url ->
                             IconButton(onClick = { uriHandler.openUri(url) }) {
-                                Icon(Icons.Default.OpenInBrowser, contentDescription = "在浏览器中打开")
+                                Icon(Icons.Default.OpenInBrowser, "Open in browser")
                             }
                         }
                     },
@@ -273,6 +330,50 @@ fun ReaderScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // 单词翻译浮窗
+            if (showWordPopup && translationState is TranslationState.Success && isSingleWordResult) {
+                WordTranslationPopup(
+                    state = translationState as TranslationState.Success,
+                    onSaveWord = { original, translation ->
+                        val content = article?.content ?: ""
+                        val ctx = extractContextSentence(content, original)
+                        viewModel.saveVocabulary(original, translation, ctx)
+                    },
+                    onSpeak = { viewModel.speak(it) },
+                    onShowMore = {
+                        showWordPopup = false
+                        scope.launch { bottomSheetState.expand() }
+                    },
+                    onDismiss = {
+                        showWordPopup = false
+                        viewModel.clearTranslation()
+                    }
+                )
+            }
+            
+            // 保存成功浮窗提示
+            if (showWordPopup && translationState is TranslationState.SavedWord) {
+                Popup(
+                    alignment = Alignment.BottomCenter,
+                    onDismissRequest = { showWordPopup = false },
+                    properties = PopupProperties(focusable = false)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "已保存到生词本",
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+            
             if (article == null) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -281,62 +382,63 @@ fun ReaderScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(
-                    state = listState,
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
                 ) {
-                    // 文章头部
-                    item(key = "header") {
+                    ArticleHeader(
+                        article = article!!,
+                        showSummary = showSummary,
+                        onToggleSummary = { viewModel.toggleSummary() }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // 提示文字
+                    Text(
+                        text = "长按选词翻译 · 拖动选句翻译",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    // Article content
+                    ArticleContent(
+                        content = article!!.content,
+                        fontSize = fontSize,
+                        onWordClick = { word ->
+                            viewModel.translate(word)
+                        },
+                        onSentenceClick = { sentence ->
+                            viewModel.translate(sentence)
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                    
+                    // 阅读完成摘要卡片
+                    if (isReadingAlmostDone) {
+                        ReadingCompletionCard(
+                            summary = viewModel.getReadingSummary()
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        ArticleHeader(
-                            article = article!!,
-                            showSummary = showSummary,
-                            onToggleSummary = { viewModel.toggleSummary() }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // 提示文字
-                        Text(
-                            text = "点击单词翻译 · 长按句子翻译",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
                     }
                     
-                    // 文章段落 - LazyColumn 只渲染可见段落
-                    items(
-                        items = paragraphs,
-                        key = { paragraph -> paragraph.hashCode() }
-                    ) { paragraph ->
-                        ClickableParagraph(
-                            text = paragraph,
-                            fontSize = fontSize,
-                            onWordClick = { word ->
-                                viewModel.translate(word)
-                            },
-                            onSentenceClick = { sentence ->
-                                viewModel.translate(sentence)
+                    // 读后三问
+                    if (quizState is QuizState.Ready) {
+                        QuizSection(
+                            state = quizState as QuizState.Ready,
+                            onSubmitAnswer = { index, answer ->
+                                viewModel.submitQuizAnswer(index, answer)
                             }
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
                     
-                    // 底部空白
-                    item(key = "footer") {
-                        Spacer(modifier = Modifier.height(48.dp))
-                    }
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
-            
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
     }
 }
@@ -435,7 +537,7 @@ private fun ArticleHeader(
             Card(
                 onClick = onToggleSummary,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -471,9 +573,32 @@ private fun ArticleHeader(
     }
 }
 
-/**
- * 可点击的段落 - 使用 remember 缓存 AnnotatedString
- */
+@Composable
+private fun ArticleContent(
+    content: String,
+    fontSize: Int,
+    onWordClick: (String) -> Unit,
+    onSentenceClick: (String) -> Unit
+) {
+    // 缓存段落分割结果，只在 content 变化时重新分割
+    val paragraphs = remember(content) {
+        content.split("\n\n").filter { it.isNotBlank() }.map { it.trim() }
+    }
+    
+    // 段距与字体大小成比例: fontSize * 1.2
+    val paragraphSpacing = (fontSize * 1.2f).dp
+    Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacing)) {
+        paragraphs.forEach { paragraph ->
+            ClickableParagraph(
+                text = paragraph,
+                fontSize = fontSize,
+                onWordClick = onWordClick,
+                onSentenceClick = onSentenceClick
+            )
+        }
+    }
+}
+
 @Composable
 private fun ClickableParagraph(
     text: String,
@@ -481,50 +606,88 @@ private fun ClickableParagraph(
     onWordClick: (String) -> Unit,
     onSentenceClick: (String) -> Unit = {}
 ) {
-    // 缓存 AnnotatedString 构建结果 - 只在 text 变化时重新构建
-    val annotatedString = remember(text) {
-        buildParagraphAnnotatedString(text)
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var selectionStart by remember { mutableStateOf<Int?>(null) }
+    var selectionEnd by remember { mutableStateOf<Int?>(null) }
+    val highlightScope = rememberCoroutineScope()
+    
+    // 高亮仅在选区变化时才重建，正常滑动时 selectionStart/End 都是 null
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+    val displayString = remember(text, selectionStart, selectionEnd) {
+        val s = selectionStart
+        val e = selectionEnd
+        if (s != null && e != null) {
+            val lo = min(s, e).coerceIn(0, text.length)
+            val hi = max(s, e).coerceIn(0, text.length)
+            if (lo < hi) {
+                buildAnnotatedString {
+                    append(text)
+                    addStyle(SpanStyle(background = highlightColor), lo, hi)
+                }
+            } else {
+                buildAnnotatedString { append(text) }
+            }
+        } else {
+            buildAnnotatedString { append(text) }
+        }
     }
     
-    // 使用非 Compose 状态的引用来存储 TextLayoutResult
-    // 避免 onTextLayout 触发不必要的重组
-    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    
     Text(
-        text = annotatedString,
+        text = displayString,
         style = MaterialTheme.typography.bodyLarge.copy(
             fontSize = fontSize.sp,
-            lineHeight = (fontSize * 1.6).sp,
+            lineHeight = (fontSize * 1.75).sp,
             fontFamily = FontFamily.Serif
         ),
-        textAlign = TextAlign.Justify,
         onTextLayout = { textLayoutResult = it },
-        modifier = Modifier.pointerInput(annotatedString) {
-            detectTapGestures(
-                onTap = { offset ->
-                    // 点击 → 翻译单词
+        modifier = Modifier.pointerInput(Unit) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { offset ->
                     textLayoutResult?.let { layoutResult ->
                         val position = layoutResult.getOffsetForPosition(offset)
-                        annotatedString.getStringAnnotations(
-                            tag = "WORD",
-                            start = position,
-                            end = position
-                        ).firstOrNull()?.let { annotation ->
-                            onWordClick(annotation.item)
-                        }
+                        // 直接用字符级扫描找到当前词的边界，比注解更准确
+                        val (wordStart, wordEnd) = findWordBoundary(text, position)
+                        selectionStart = wordStart
+                        selectionEnd = wordEnd
                     }
                 },
-                onLongPress = { offset ->
-                    // 长按 → 翻译句子
+                onDrag = { change, _ ->
                     textLayoutResult?.let { layoutResult ->
-                        val position = layoutResult.getOffsetForPosition(offset)
-                        annotatedString.getStringAnnotations(
-                            tag = "SENTENCE",
-                            start = position,
-                            end = position
-                        ).firstOrNull()?.let { annotation ->
-                            onSentenceClick(annotation.item)
+                        val position = layoutResult.getOffsetForPosition(change.position)
+                        // 拖动时扩展到整个词的边界，而不是精确到字符
+                        val (_, wordEnd) = findWordBoundary(text, position)
+                        selectionEnd = wordEnd
+                    }
+                },
+                onDragCancel = {
+                    selectionStart = null
+                    selectionEnd = null
+                },
+                onDragEnd = {
+                    val start = selectionStart
+                    val end = selectionEnd
+                    if (start != null && end != null) {
+                        val lo = min(start, end).coerceIn(0, text.length)
+                        val hi = max(start, end).coerceIn(0, text.length)
+                        
+                        if (lo < hi) {
+                            val selected = text.substring(lo, hi).trim()
+                            if (selected.isNotEmpty()) {
+                                // 判断选中的内容是单词还是短语/句子
+                                val cleaned = selected.trim { !it.isLetter() && it != '\'' && it != '-' }
+                                if (cleaned.isNotEmpty() && cleaned.all { it.isLetter() || it == '\'' || it == '-' }) {
+                                    onWordClick(cleaned)
+                                } else {
+                                    onSentenceClick(selected)
+                                }
+                            }
                         }
+                    }
+                    // 高亮保持 300ms 后消失
+                    highlightScope.launch {
+                        kotlinx.coroutines.delay(300)
+                        selectionStart = null
+                        selectionEnd = null
                     }
                 }
             )
@@ -533,39 +696,150 @@ private fun ClickableParagraph(
 }
 
 /**
- * 纯函数：构建段落的 AnnotatedString（可缓存）
+ * 根据字符位置找到所在单词的边界 [start, end)
+ * 比基于正则注解的方式更准确，直接在原始文本上操作
  */
-private fun buildParagraphAnnotatedString(text: String): AnnotatedString {
-    return buildAnnotatedString {
-        // 将段落分割为句子
-        val sentences = text.split(Regex("(?<=[.!?])\\s+"))
-        var globalIndex = 0
-        
-        sentences.forEachIndexed { sentenceIndex, sentence ->
-            // 为整个句子添加注解
-            pushStringAnnotation(tag = "SENTENCE", annotation = sentence.trim())
-            
-            // 分割句子中的单词
-            val tokens = sentence.split(Regex("(?<=\\s)|(?=\\s)|(?<=[.,!?;:\"'()\\[\\]{}])|(?=[.,!?;:\"'()\\[\\]{}])"))
-            
-            tokens.forEach { token ->
-                val cleanWord = token.trim()
-                if (cleanWord.isNotEmpty() && cleanWord.matches(Regex("[a-zA-Z]+"))) {
-                    pushStringAnnotation(tag = "WORD", annotation = cleanWord)
-                    append(token)
-                    pop()
-                } else {
-                    append(token)
+private fun findWordBoundary(text: String, offset: Int): Pair<Int, Int> {
+    if (text.isEmpty()) return Pair(0, 0)
+    val pos = offset.coerceIn(0, text.length - 1)
+    
+    // 如果当前位置不是字母，尝试往左找一个字母（用户可能点在了词的右侧空白处）
+    var anchor = pos
+    if (anchor < text.length && !text[anchor].isLetter()) {
+        if (anchor > 0 && text[anchor - 1].isLetter()) {
+            anchor = anchor - 1
+        }
+    }
+    
+    // 如果仍然不是字母，返回原始位置
+    if (anchor >= text.length || !text[anchor].isLetter()) {
+        return Pair(offset.coerceIn(0, text.length), offset.coerceIn(0, text.length))
+    }
+    
+    // 向左扫描到词的起始位置
+    var start = anchor
+    while (start > 0 && (text[start - 1].isLetter() || text[start - 1] == '\'' || text[start - 1] == '-')) {
+        start--
+    }
+    
+    // 向右扫描到词的结束位置
+    var end = anchor + 1
+    while (end < text.length && (text[end].isLetter() || text[end] == '\'' || text[end] == '-')) {
+        end++
+    }
+    
+    return Pair(start, end)
+}
+
+// ==================== 单词轻量浮窗 ====================
+
+@Composable
+private fun WordTranslationPopup(
+    state: TranslationState.Success,
+    onSaveWord: (String, String) -> Unit,
+    onSpeak: (String) -> Unit,
+    onShowMore: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Popup(
+        alignment = Alignment.BottomCenter,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 12.dp,
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth(0.92f)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                // 单词 + 音标 + 发音
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = state.original,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { onSpeak(state.original) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.VolumeUp,
+                            contentDescription = "朗读",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "关闭",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
-                globalIndex += token.length
-            }
-            
-            pop() // 结束句子注解
-            
-            // 句子之间添加空格
-            if (sentenceIndex < sentences.size - 1) {
-                append(" ")
-                globalIndex += 1
+                
+                state.phonetic?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 释义
+                Text(
+                    text = state.translation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3
+                )
+                
+                // 来源
+                Text(
+                    text = if (state.isFromDict) "本地词典" else "AI 翻译",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 操作按钮行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { onSaveWord(state.original, state.translation) }
+                    ) {
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("生词本", style = MaterialTheme.typography.labelMedium)
+                    }
+                    
+                    TextButton(onClick = onShowMore) {
+                        Text("更多", style = MaterialTheme.typography.labelMedium)
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -595,7 +869,7 @@ private fun TranslationSheet(
                 fontWeight = FontWeight.Bold
             )
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "关闭")
+                Icon(Icons.Default.Close, "Close")
             }
         }
         
@@ -744,6 +1018,244 @@ private fun TranslationSheet(
         
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+// ==================== 阅读完成摘要 ====================
+
+@Composable
+private fun ReadingCompletionCard(summary: ReadingSummary) {
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 8.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
+    
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "阅读完成",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${summary.readingTimeMinutes}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "分钟",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${summary.newWordsCount}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "查词",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${summary.wpm}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "WPM",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==================== 读后三问 ====================
+
+@Composable
+private fun QuizSection(
+    state: QuizState.Ready,
+    onSubmitAnswer: (Int, String) -> Unit
+) {
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 8.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
+    
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 12.dp)
+        ) {
+            Icon(
+                Icons.Default.Quiz,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "读后检测",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.tertiary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "检验你的理解",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        state.questions.forEachIndexed { index, question ->
+            QuizQuestionCard(
+                index = index,
+                question = question,
+                answer = state.userAnswers[index],
+                onSubmit = { answer -> onSubmitAnswer(index, answer) }
+            )
+            if (index < state.questions.size - 1) {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuizQuestionCard(
+    index: Int,
+    question: ComprehensionQuestion,
+    answer: QuizAnswer?,
+    onSubmit: (String) -> Unit
+) {
+    var inputText by remember { mutableStateOf("") }
+    
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "${index + 1}. ${question.question}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (answer != null) {
+                // 已回答 — 显示反馈
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "你的回答：${answer.userAnswer}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = answer.feedback,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            } else {
+                // 未回答 — 显示输入框
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("用英文或中文简短作答…") },
+                    singleLine = false,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = {
+                        if (inputText.isNotBlank()) {
+                            onSubmit(inputText)
+                        }
+                    },
+                    enabled = inputText.isNotBlank(),
+                    modifier = Modifier.align(Alignment.End),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = ButtonDefaults.ContentPadding
+                ) {
+                    Icon(
+                        Icons.Default.Send,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("提交", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 从文章内容中提取包含目标单词的句子作为上下文
+ */
+private fun extractContextSentence(content: String, word: String): String? {
+    if (content.isBlank() || word.isBlank()) return null
+    val sentences = content.split(SENTENCE_SPLIT_REGEX)
+    val target = word.lowercase()
+    val wordBoundaryRegex = Regex("\\b${Regex.escape(target)}\\b")
+    return sentences.firstOrNull { sentence ->
+        sentence.lowercase().contains(wordBoundaryRegex)
+    }?.trim()
 }
 
 private fun formatDate(timestamp: Long): String {

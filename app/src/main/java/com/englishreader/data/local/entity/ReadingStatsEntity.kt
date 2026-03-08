@@ -10,5 +10,7 @@ data class ReadingStatsEntity(
     val articlesRead: Int = 0,
     val wordsRead: Int = 0,
     val timeSpentMinutes: Int = 0,
-    val vocabularySaved: Int = 0
+    val vocabularySaved: Int = 0,
+    val lookupCount: Int = 0,              // 查词次数
+    val averageWpm: Int = 0                // 平均每分钟阅读词数
 )

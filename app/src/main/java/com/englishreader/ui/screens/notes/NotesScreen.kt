@@ -1,7 +1,10 @@
 package com.englishreader.ui.screens.notes
 
 import android.content.Intent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +27,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
@@ -33,6 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,7 +50,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,6 +60,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -71,20 +82,32 @@ fun NotesScreen(
     val dueReviewCount by viewModel.dueReviewCount.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val context = LocalContext.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text("笔记本") },
+            LargeTopAppBar(
+                title = {
+                    Text(
+                        "笔记本",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                ),
                 actions = {
                     // 开始复习按钮
                     IconButton(
                         onClick = onNavigateToFlashcard
                     ) {
-                        androidx.compose.foundation.layout.Box {
+                        Box {
                             Icon(Icons.Default.PlayArrow, contentDescription = "开始复习")
                             if (dueReviewCount > 0) {
-                                androidx.compose.foundation.layout.Box(
+                                Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .size(16.dp)
@@ -124,20 +147,48 @@ fun NotesScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Tab Row
-            TabRow(
-                selectedTabIndex = currentTab.ordinal
+            // Modern Segmented Tab Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Tab(
-                    selected = currentTab == NotesTab.VOCABULARY,
-                    onClick = { viewModel.setCurrentTab(NotesTab.VOCABULARY) },
-                    text = { Text("生词本") }
-                )
-                Tab(
-                    selected = currentTab == NotesTab.SENTENCES,
-                    onClick = { viewModel.setCurrentTab(NotesTab.SENTENCES) },
-                    text = { Text("句子摘抄") }
-                )
+                listOf(
+                    NotesTab.VOCABULARY to "生词本",
+                    NotesTab.SENTENCES to "句子摘抄"
+                ).forEach { (tab, label) ->
+                    val isSelected = currentTab == tab
+                    val bgColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        animationSpec = tween(200),
+                        label = "tab_bg"
+                    )
+                    val textColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(200),
+                        label = "tab_text"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(bgColor)
+                            .clickable { viewModel.setCurrentTab(tab) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = textColor
+                        )
+                    }
+                }
             }
             
             // Content based on tab
@@ -159,6 +210,7 @@ private fun VocabularyTabContent(viewModel: NotesViewModel) {
     val filter by viewModel.vocabularyFilter.collectAsState()
     val searchQuery by viewModel.vocabularySearchQuery.collectAsState()
     val stats by viewModel.vocabularyStats.collectAsState()
+    val viewMode by viewModel.vocabularyViewMode.collectAsState()
     
     var showDeleteDialog by remember { mutableStateOf<Vocabulary?>(null) }
     
@@ -184,22 +236,51 @@ private fun VocabularyTabContent(viewModel: NotesViewModel) {
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = filter == VocabularyFilter.ALL,
-                    onClick = { viewModel.setVocabularyFilter(VocabularyFilter.ALL) },
-                    label = { Text("全部 (${stats.total})") }
-                )
-                FilterChip(
-                    selected = filter == VocabularyFilter.UNMASTERED,
-                    onClick = { viewModel.setVocabularyFilter(VocabularyFilter.UNMASTERED) },
-                    label = { Text("学习中 (${stats.unmastered})") }
-                )
-                FilterChip(
-                    selected = filter == VocabularyFilter.MASTERED,
-                    onClick = { viewModel.setVocabularyFilter(VocabularyFilter.MASTERED) },
-                    label = { Text("已掌握 (${stats.mastered})") }
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = filter == VocabularyFilter.ALL,
+                        onClick = { viewModel.setVocabularyFilter(VocabularyFilter.ALL) },
+                        label = { Text("全部 (${stats.total})") }
+                    )
+                    FilterChip(
+                        selected = filter == VocabularyFilter.UNMASTERED,
+                        onClick = { viewModel.setVocabularyFilter(VocabularyFilter.UNMASTERED) },
+                        label = { Text("学习中 (${stats.unmastered})") }
+                    )
+                    FilterChip(
+                        selected = filter == VocabularyFilter.MASTERED,
+                        onClick = { viewModel.setVocabularyFilter(VocabularyFilter.MASTERED) },
+                        label = { Text("已掌握 (${stats.mastered})") }
+                    )
+                }
+                
+                // 视图切换按钮
+                IconButton(
+                    onClick = {
+                        viewModel.setVocabularyViewMode(
+                            if (viewMode == VocabularyViewMode.FLAT) 
+                                VocabularyViewMode.GROUPED_BY_ARTICLE 
+                            else 
+                                VocabularyViewMode.FLAT
+                        )
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (viewMode == VocabularyViewMode.FLAT)
+                            Icons.Default.Folder
+                        else
+                            Icons.Default.ViewList,
+                        contentDescription = if (viewMode == VocabularyViewMode.FLAT) "按文章分组" else "列表视图",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
         
@@ -207,6 +288,13 @@ private fun VocabularyTabContent(viewModel: NotesViewModel) {
         
         if (vocabulary.isEmpty()) {
             EmptyVocabularyState()
+        } else if (viewMode == VocabularyViewMode.GROUPED_BY_ARTICLE) {
+            // 按文章分组视图
+            GroupedVocabularyList(
+                vocabulary = vocabulary,
+                onToggleMastered = { viewModel.toggleVocabularyMastered(it) },
+                onDelete = { showDeleteDialog = it }
+            )
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
@@ -574,6 +662,81 @@ private fun SentenceCard(
                     contentDescription = null,
                     tint = if (sentence.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupedVocabularyList(
+    vocabulary: List<Vocabulary>,
+    onToggleMastered: (Vocabulary) -> Unit,
+    onDelete: (Vocabulary) -> Unit
+) {
+    // 按文章分组
+    val grouped = vocabulary.groupBy { it.articleTitle ?: "未分类" }
+    val expandedGroups = remember { mutableStateOf(setOf<String>()) }
+    
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        grouped.forEach { (articleTitle, words) ->
+            val isExpanded = expandedGroups.value.contains(articleTitle)
+            
+            item(key = "group_$articleTitle") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            expandedGroups.value = if (isExpanded) {
+                                expandedGroups.value - articleTitle
+                            } else {
+                                expandedGroups.value + articleTitle
+                            }
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = articleTitle,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${words.size} 个词汇",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
+            if (isExpanded) {
+                items(words, key = { it.id }) { vocab ->
+                    VocabularyCard(
+                        vocabulary = vocab,
+                        onToggleMastered = { onToggleMastered(vocab) },
+                        onDelete = { onDelete(vocab) }
+                    )
+                }
             }
         }
     }

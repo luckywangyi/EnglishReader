@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
@@ -37,6 +38,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -100,6 +102,7 @@ fun HomeScreen(
     val recommendedArticle by viewModel.recommendedArticle.collectAsState()
     val isLoadingRecommendation by viewModel.isLoadingRecommendation.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val continueReadingArticle by viewModel.continueReadingArticle.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
     var showFilterSheet by remember { mutableStateOf(false) }
@@ -173,6 +176,16 @@ fun HomeScreen(
                         )
                     }
                     
+                    // Continue Reading Card
+                    if (continueReadingArticle != null) {
+                        item(key = "continue_reading") {
+                            ContinueReadingCard(
+                                article = continueReadingArticle!!,
+                                onClick = { onArticleClick(continueReadingArticle!!.id) }
+                            )
+                        }
+                    }
+                    
                     // Hero Recommendation Card
                     item(key = "recommendation") {
                         GlassRecommendationCard(
@@ -242,39 +255,48 @@ private fun MinimalHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
-            onClick = onFilterClick,
-            modifier = Modifier.size(44.dp)
-        ) {
-            Icon(
-                Icons.Default.FilterList,
-                contentDescription = stringResource(R.string.home_filter_title),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         
-        Spacer(modifier = Modifier.width(4.dp))
-        
-        IconButton(
-            onClick = onRefreshClick,
-            enabled = !isRefreshing,
-            modifier = Modifier.size(44.dp)
-        ) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else {
+        Row {
+            IconButton(
+                onClick = onFilterClick,
+                modifier = Modifier.size(44.dp)
+            ) {
                 Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = stringResource(R.string.refresh),
+                    Icons.Default.FilterList,
+                    contentDescription = stringResource(R.string.home_filter_title),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            
+            Spacer(modifier = Modifier.width(4.dp))
+            
+            IconButton(
+                onClick = onRefreshClick,
+                enabled = !isRefreshing,
+                modifier = Modifier.size(44.dp)
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = stringResource(R.string.refresh),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -475,6 +497,76 @@ private fun GlassRecommendationCard(
                     }
                 }
             }
+        }
+    }
+}
+
+// =============================================================================
+// Continue Reading Card
+// =============================================================================
+
+@Composable
+private fun ContinueReadingCard(
+    article: Article,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.MenuBook,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "继续阅读",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = article.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = { article.readProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            Text(
+                text = "${(article.readProgress * 100).toInt()}%",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

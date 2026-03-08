@@ -24,6 +24,7 @@ class ReminderScheduler @Inject constructor(
     fun scheduleReminders(morningHour: Int = 10, eveningHour: Int = 21) {
         scheduleMorningReminder(morningHour)
         scheduleEveningReminder(eveningHour)
+        scheduleWeeklySummary()
     }
     
     /**
@@ -77,6 +78,51 @@ class ReminderScheduler @Inject constructor(
     }
     
     /**
+     * 调度每周学习摘要
+     * 每周日 20:00 推送
+     */
+    private fun scheduleWeeklySummary() {
+        val initialDelay = calculateDelayToNextSunday(20)
+        
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .build()
+        
+        val workRequest = PeriodicWorkRequestBuilder<WeeklySummaryWorker>(
+            7, TimeUnit.DAYS
+        )
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .build()
+        
+        workManager.enqueueUniquePeriodicWork(
+            WeeklySummaryWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            workRequest
+        )
+    }
+    
+    /**
+     * 计算到下一个周日指定时间的延迟（毫秒）
+     */
+    private fun calculateDelayToNextSunday(hour: Int): Long {
+        val now = Calendar.getInstance()
+        val target = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        
+        if (target.before(now) || target == now) {
+            target.add(Calendar.WEEK_OF_YEAR, 1)
+        }
+        
+        return target.timeInMillis - now.timeInMillis
+    }
+    
+    /**
      * 计算到指定时间的初始延迟（毫秒）
      */
     private fun calculateInitialDelay(targetHour: Int, targetMinute: Int): Long {
@@ -102,6 +148,7 @@ class ReminderScheduler @Inject constructor(
     fun cancelAllReminders() {
         workManager.cancelUniqueWork(MorningReminderWorker.WORK_NAME)
         workManager.cancelUniqueWork(EveningReminderWorker.WORK_NAME)
+        workManager.cancelUniqueWork(WeeklySummaryWorker.WORK_NAME)
     }
     
     /**

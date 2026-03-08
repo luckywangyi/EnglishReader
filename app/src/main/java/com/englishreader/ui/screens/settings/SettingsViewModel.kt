@@ -82,6 +82,8 @@ class SettingsViewModel @Inject constructor(
     fun setDarkMode(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setDarkMode(enabled)
+            // 同步更新 themeMode，保持一致
+            settingsRepository.setThemeMode(if (enabled) "DARK" else "LIGHT")
         }
     }
     

@@ -23,7 +23,7 @@ import com.englishreader.data.local.entity.VocabularyEntity
         SentenceEntity::class,
         CustomRssSourceEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,21 +34,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customRssSourceDao(): CustomRssSourceDao
     
     companion object {
-        // 数据库迁移：版本 1 -> 2
-        // 添加间隔重复算法字段到 vocabulary 表
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 添加 nextReviewAt 列
                 db.execSQL("ALTER TABLE vocabulary ADD COLUMN nextReviewAt INTEGER NOT NULL DEFAULT ${System.currentTimeMillis()}")
-                // 添加 easeFactor 列
                 db.execSQL("ALTER TABLE vocabulary ADD COLUMN easeFactor REAL NOT NULL DEFAULT 2.5")
-                // 添加 interval 列
                 db.execSQL("ALTER TABLE vocabulary ADD COLUMN interval INTEGER NOT NULL DEFAULT 0")
             }
         }
         
-        // 数据库迁移：版本 2 -> 3
-        // 添加自定义 RSS 源表
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -67,11 +60,8 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
         
-        // 数据库迁移：版本 3 -> 4
-        // 添加文章离线阅读字段和阅读时长字段
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 安全添加列（如果不存在才添加）
                 addColumnIfNotExists(db, "articles", "readTimeMinutes", "INTEGER NOT NULL DEFAULT 0")
                 addColumnIfNotExists(db, "articles", "isDownloaded", "INTEGER NOT NULL DEFAULT 0")
                 addColumnIfNotExists(db, "articles", "localImagePath", "TEXT")
@@ -79,31 +69,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
         
-        // 数据库迁移：版本 4 -> 5
-        // 为常用查询字段添加索引，提升查询性能
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // articles 表索引
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_sourceId ON articles(sourceId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_publishedAt ON articles(publishedAt)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_isRead ON articles(isRead)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_isFavorite ON articles(isFavorite)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_difficultyLevel ON articles(difficultyLevel)")
                 
-                // vocabulary 表索引
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_word ON vocabulary(word)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_articleId ON vocabulary(articleId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_isMastered_nextReviewAt ON vocabulary(isMastered, nextReviewAt)")
                 
-                // sentences 表索引
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sentences_articleId ON sentences(articleId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sentences_isFavorite ON sentences(isFavorite)")
             }
         }
         
-        /**
-         * 安全添加列 - 如果列不存在才添加
-         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfNotExists(db, "reading_stats", "lookupCount", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfNotExists(db, "reading_stats", "averageWpm", "INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        
         private fun addColumnIfNotExists(
             db: SupportSQLiteDatabase,
             tableName: String,

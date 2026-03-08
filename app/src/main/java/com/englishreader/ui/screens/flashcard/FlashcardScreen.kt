@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,17 +71,26 @@ fun FlashcardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("单词复习") },
+                title = {
+                    Text(
+                        "单词复习",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                ),
                 actions = {
                     if (dueVocabulary.isNotEmpty() && !isCompleted) {
                         Text(
                             text = "${currentIndex + 1}/${dueVocabulary.size}",
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(end = 16.dp)
                         )
                     }
@@ -183,11 +193,12 @@ private fun FlipCard(
         contentAlignment = Alignment.Center
     ) {
         if (rotation <= 90f) {
-            // 正面 - 单词
+            // 正面 - 单词（带上下文挖空）
             CardFront(
                 word = vocabulary.word,
                 phonetic = vocabulary.phonetic,
-                onSpeak = onSpeak
+                onSpeak = onSpeak,
+                context = vocabulary.context
             )
         } else {
             // 背面 - 释义
@@ -205,7 +216,8 @@ private fun FlipCard(
 private fun CardFront(
     word: String,
     phonetic: String?,
-    onSpeak: () -> Unit
+    onSpeak: () -> Unit,
+    context: String? = null
 ) {
     Card(
         modifier = Modifier
@@ -224,9 +236,26 @@ private fun CardFront(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // 如果有上下文，显示挖空句
+            if (context != null) {
+                val clozeText = context.replace(
+                    Regex("\\b${Regex.escape(word)}\\b", RegexOption.IGNORE_CASE),
+                    "______"
+                )
+                Text(
+                    text = "\"$clozeText\"",
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+            
             Text(
                 text = word,
-                style = MaterialTheme.typography.displayMedium,
+                style = if (context != null) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -254,7 +283,7 @@ private fun CardFront(
                 )
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             Text(
                 text = "点击翻转查看释义",

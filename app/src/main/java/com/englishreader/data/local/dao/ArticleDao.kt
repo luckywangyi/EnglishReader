@@ -91,4 +91,7 @@ interface ArticleDao {
     
     @Query("SELECT EXISTS(SELECT 1 FROM articles WHERE originalUrl = :url)")
     suspend fun articleExists(url: String): Boolean
+    
+    @Query("SELECT * FROM articles WHERE readProgress > 0.05 AND readProgress < 0.95 ORDER BY lastReadAt DESC LIMIT 1")
+    suspend fun getLastInProgressArticle(): ArticleEntity?
 }
