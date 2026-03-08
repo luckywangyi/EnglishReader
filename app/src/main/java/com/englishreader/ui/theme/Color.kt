@@ -69,7 +69,7 @@ val OnBackgroundDark = Color(0xFFFFFFFF)
 val SurfaceDark = Color(0xFF1C1C1E)
 val OnSurfaceDark = Color(0xFFFFFFFF)
 val SurfaceVariantDark = Color(0xFF2C2C2E)
-val OnSurfaceVariantDark = Color(0xFF98989D)
+val OnSurfaceVariantDark = Color(0xFFAEAEB2)
 val OutlineDark = Color(0xFF48484A)
 val OutlineVariantDark = Color(0xFF38383A)
 
@@ -84,7 +84,7 @@ val GlassBorder = Color(0x33FFFFFF)          // 20% white border
 val GlassShadow = Color(0x14000000)          // 8% black shadow
 
 // Dark mode glass
-val GlassBackgroundDark = Color(0xCC1C1C1E)  // 80% dark surface
+val GlassBackgroundDark = Color(0xF02C2C2E)  // 94% dark surface - solid enough for readability
 val GlassBorderDark = Color(0x33FFFFFF)      // 20% white border
 
 // =============================================================================

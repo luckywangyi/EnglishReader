@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.englishreader.domain.model.Sentence
 import com.englishreader.domain.model.Vocabulary
+import com.englishreader.ui.components.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +69,7 @@ fun NotesScreen(
 ) {
     val currentTab by viewModel.currentTab.collectAsState()
     val dueReviewCount by viewModel.dueReviewCount.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val context = LocalContext.current
     
     Scaffold(
@@ -111,7 +113,7 @@ fun NotesScreen(
                             context.startActivity(Intent.createChooser(intent, "导出笔记"))
                         }
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = "Export")
+                        Icon(Icons.Default.Share, contentDescription = "导出")
                     }
                 }
             )
@@ -139,9 +141,13 @@ fun NotesScreen(
             }
             
             // Content based on tab
-            when (currentTab) {
-                NotesTab.VOCABULARY -> VocabularyTabContent(viewModel)
-                NotesTab.SENTENCES -> SentenceTabContent(viewModel)
+            if (isLoading) {
+                LoadingState(message = "加载笔记...")
+            } else {
+                when (currentTab) {
+                    NotesTab.VOCABULARY -> VocabularyTabContent(viewModel)
+                    NotesTab.SENTENCES -> SentenceTabContent(viewModel)
+                }
             }
         }
     }
@@ -333,7 +339,7 @@ private fun VocabularyStatsCard(stats: VocabularyStats) {
             .fillMaxWidth()
             .padding(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -375,7 +381,7 @@ private fun SentenceStatsCard(stats: SentenceStats) {
             .fillMaxWidth()
             .padding(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
         )
     ) {
         Row(
@@ -430,7 +436,7 @@ private fun VocabularyCard(
             ),
         colors = CardDefaults.cardColors(
             containerColor = if (vocabulary.isMastered)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.surfaceVariant
             else
                 MaterialTheme.colorScheme.surface
         )

@@ -81,6 +81,11 @@ class RssService @Inject constructor(
             // Calculate word count
             val wordCount = content.split(Regex("\\s+")).size
             
+            // RSS 入库阶段过滤：摘要极短且无截断标记的条目直接跳过
+            if (wordCount < 30 && !hasReadMoreIndicator(content)) {
+                return@mapNotNull null
+            }
+            
             ArticleEntity(
                 id = id,
                 sourceId = source.id,
@@ -133,6 +138,18 @@ class RssService @Inject constructor(
         val imgRegex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']")
         val match = imgRegex.find(content)
         return match?.groupValues?.getOrNull(1)
+    }
+    
+    private fun hasReadMoreIndicator(content: String): Boolean {
+        val lower = content.lowercase()
+        return lower.contains("continue reading") ||
+            lower.contains("read more") ||
+            lower.contains("continue on medium") ||
+            lower.contains("click here") ||
+            lower.contains("full story") ||
+            lower.contains("[...]") ||
+            lower.contains("…") ||
+            lower.endsWith("...")
     }
     
     private fun isMediaItem(title: String, description: String?, link: String): Boolean {

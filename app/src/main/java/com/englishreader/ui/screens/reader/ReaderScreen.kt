@@ -1,6 +1,5 @@
 package com.englishreader.ui.screens.reader
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,14 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -41,6 +40,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -49,35 +49,41 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import com.englishreader.R
-import android.widget.Toast
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import com.englishreader.domain.model.Article
 import com.englishreader.ui.components.DifficultyBadge
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun ReaderScreen(
     articleId: String,
@@ -92,39 +98,51 @@ fun ReaderScreen(
     val isFetchingFullContent by viewModel.isFetchingFullContent.collectAsState()
     val fullContentFetchResult by viewModel.fullContentFetchResult.collectAsState()
     
-    val scrollState = rememberScrollState()
-    val context = LocalContext.current
+    val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     
     // 离开页面时保存阅读时长
-    androidx.compose.runtime.DisposableEffect(Unit) {
+    DisposableEffect(Unit) {
         onDispose {
             viewModel.saveReadingTime()
         }
     }
     
-    // Calculate reading progress
+    // 预先拆分段落并缓存，避免每次重组都拆分
+    val paragraphs = remember(article?.content) {
+        article?.content?.split("\n\n")?.filter { it.isNotBlank() }?.map { it.trim() } ?: emptyList()
+    }
+    
+    // 使用 LazyListState 计算阅读进度
     val readProgress by remember {
         derivedStateOf {
-            if (scrollState.maxValue > 0) {
-                scrollState.value.toFloat() / scrollState.maxValue.toFloat()
-            } else 0f
+            val layoutInfo = listState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            if (totalItems == 0) 0f
+            else {
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                (lastVisibleItem + 1).toFloat() / totalItems.toFloat()
+            }
         }
     }
     
-    // Update progress when scrolling
-    LaunchedEffect(readProgress) {
-        if (readProgress > 0.1f) {
-            viewModel.updateReadProgress(readProgress)
-        }
+    // 节流：滚动进度写入数据库 - 防抖 1 秒，只在停止滚动后更新
+    LaunchedEffect(Unit) {
+        snapshotFlow { readProgress }
+            .distinctUntilChanged()
+            .debounce(1000L)
+            .collect { progress ->
+                if (progress > 0.1f) {
+                    viewModel.updateReadProgress(progress)
+                }
+            }
     }
     
     LaunchedEffect(fullContentFetchResult) {
-        if (fullContentFetchResult == com.englishreader.data.repository.FullContentFetchResult.TOO_SHORT) {
-            Toast.makeText(context, "该内容过短，已过滤", Toast.LENGTH_SHORT).show()
+        if (fullContentFetchResult == com.englishreader.data.repository.FullContentFetchResult.UPDATED) {
             viewModel.clearFullContentFetchResult()
-            onBack()
         }
     }
     
@@ -180,7 +198,7 @@ fun ReaderScreen(
                     title = { },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                         }
                     },
                     actions = {
@@ -199,7 +217,7 @@ fun ReaderScreen(
                                     Icons.Filled.Favorite
                                 else
                                     Icons.Outlined.FavoriteBorder,
-                                contentDescription = "Favorite",
+                                contentDescription = "收藏",
                                 tint = if (article?.isFavorite == true)
                                     MaterialTheme.colorScheme.error
                                 else
@@ -210,7 +228,7 @@ fun ReaderScreen(
                         // Open in browser
                         article?.originalUrl?.let { url ->
                             IconButton(onClick = { uriHandler.openUri(url) }) {
-                                Icon(Icons.Default.OpenInBrowser, "Open in browser")
+                                Icon(Icons.Default.OpenInBrowser, contentDescription = "在浏览器中打开")
                             }
                         }
                     },
@@ -263,43 +281,62 @@ fun ReaderScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                Column(
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    ArticleHeader(
-                        article = article!!,
-                        showSummary = showSummary,
-                        onToggleSummary = { viewModel.toggleSummary() }
-                    )
+                    // 文章头部
+                    item(key = "header") {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        ArticleHeader(
+                            article = article!!,
+                            showSummary = showSummary,
+                            onToggleSummary = { viewModel.toggleSummary() }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // 提示文字
+                        Text(
+                            text = "点击单词翻译 · 长按句子翻译",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
                     
-                    Spacer(modifier = Modifier.height(24.dp))
+                    // 文章段落 - LazyColumn 只渲染可见段落
+                    items(
+                        items = paragraphs,
+                        key = { paragraph -> paragraph.hashCode() }
+                    ) { paragraph ->
+                        ClickableParagraph(
+                            text = paragraph,
+                            fontSize = fontSize,
+                            onWordClick = { word ->
+                                viewModel.translate(word)
+                            },
+                            onSentenceClick = { sentence ->
+                                viewModel.translate(sentence)
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                     
-                    // 提示文字
-                    Text(
-                        text = "点击单词翻译 · 长按句子翻译",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    // Article content - tap on words, long press on sentences
-                    ArticleContent(
-                        content = article!!.content,
-                        fontSize = fontSize,
-                        onWordClick = { word ->
-                            viewModel.translate(word)
-                        },
-                        onSentenceClick = { sentence ->
-                            viewModel.translate(sentence)
-                        }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(48.dp))
+                    // 底部空白
+                    item(key = "footer") {
+                        Spacer(modifier = Modifier.height(48.dp))
+                    }
                 }
             }
+            
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }
@@ -314,8 +351,13 @@ private fun ArticleHeader(
         // Image
         article.imageUrl?.let { imageUrl ->
             AsyncImage(
-                model = imageUrl,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(imageUrl)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = null,
+                placeholder = painterResource(R.drawable.ic_launcher_foreground),
+                error = painterResource(R.drawable.ic_launcher_foreground),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
@@ -393,7 +435,7 @@ private fun ArticleHeader(
             Card(
                 onClick = onToggleSummary,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -429,28 +471,9 @@ private fun ArticleHeader(
     }
 }
 
-@Composable
-private fun ArticleContent(
-    content: String,
-    fontSize: Int,
-    onWordClick: (String) -> Unit,
-    onSentenceClick: (String) -> Unit
-) {
-    // Split content into paragraphs
-    val paragraphs = content.split("\n\n").filter { it.isNotBlank() }
-    
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        paragraphs.forEach { paragraph ->
-            ClickableParagraph(
-                text = paragraph.trim(),
-                fontSize = fontSize,
-                onWordClick = onWordClick,
-                onSentenceClick = onSentenceClick
-            )
-        }
-    }
-}
-
+/**
+ * 可点击的段落 - 使用 remember 缓存 AnnotatedString
+ */
 @Composable
 private fun ClickableParagraph(
     text: String,
@@ -458,44 +481,14 @@ private fun ClickableParagraph(
     onWordClick: (String) -> Unit,
     onSentenceClick: (String) -> Unit = {}
 ) {
-    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    
-    // 将段落分割为句子
-    val sentences = text.split(Regex("(?<=[.!?])\\s+"))
-    
-    val annotatedString = buildAnnotatedString {
-        var globalIndex = 0
-        
-        sentences.forEachIndexed { sentenceIndex, sentence ->
-            val sentenceStart = globalIndex
-            
-            // 为整个句子添加注解
-            pushStringAnnotation(tag = "SENTENCE", annotation = sentence.trim())
-            
-            // 分割句子中的单词
-            val tokens = sentence.split(Regex("(?<=\\s)|(?=\\s)|(?<=[.,!?;:\"'()\\[\\]{}])|(?=[.,!?;:\"'()\\[\\]{}])"))
-            
-            tokens.forEach { token ->
-                val cleanWord = token.trim()
-                if (cleanWord.isNotEmpty() && cleanWord.matches(Regex("[a-zA-Z]+"))) {
-                    pushStringAnnotation(tag = "WORD", annotation = cleanWord)
-                    append(token)
-                    pop()
-                } else {
-                    append(token)
-                }
-                globalIndex += token.length
-            }
-            
-            pop() // 结束句子注解
-            
-            // 句子之间添加空格
-            if (sentenceIndex < sentences.size - 1) {
-                append(" ")
-                globalIndex += 1
-            }
-        }
+    // 缓存 AnnotatedString 构建结果 - 只在 text 变化时重新构建
+    val annotatedString = remember(text) {
+        buildParagraphAnnotatedString(text)
     }
+    
+    // 使用非 Compose 状态的引用来存储 TextLayoutResult
+    // 避免 onTextLayout 触发不必要的重组
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     
     Text(
         text = annotatedString,
@@ -506,7 +499,7 @@ private fun ClickableParagraph(
         ),
         textAlign = TextAlign.Justify,
         onTextLayout = { textLayoutResult = it },
-        modifier = Modifier.pointerInput(Unit) {
+        modifier = Modifier.pointerInput(annotatedString) {
             detectTapGestures(
                 onTap = { offset ->
                     // 点击 → 翻译单词
@@ -539,6 +532,45 @@ private fun ClickableParagraph(
     )
 }
 
+/**
+ * 纯函数：构建段落的 AnnotatedString（可缓存）
+ */
+private fun buildParagraphAnnotatedString(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        // 将段落分割为句子
+        val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+        var globalIndex = 0
+        
+        sentences.forEachIndexed { sentenceIndex, sentence ->
+            // 为整个句子添加注解
+            pushStringAnnotation(tag = "SENTENCE", annotation = sentence.trim())
+            
+            // 分割句子中的单词
+            val tokens = sentence.split(Regex("(?<=\\s)|(?=\\s)|(?<=[.,!?;:\"'()\\[\\]{}])|(?=[.,!?;:\"'()\\[\\]{}])"))
+            
+            tokens.forEach { token ->
+                val cleanWord = token.trim()
+                if (cleanWord.isNotEmpty() && cleanWord.matches(Regex("[a-zA-Z]+"))) {
+                    pushStringAnnotation(tag = "WORD", annotation = cleanWord)
+                    append(token)
+                    pop()
+                } else {
+                    append(token)
+                }
+                globalIndex += token.length
+            }
+            
+            pop() // 结束句子注解
+            
+            // 句子之间添加空格
+            if (sentenceIndex < sentences.size - 1) {
+                append(" ")
+                globalIndex += 1
+            }
+        }
+    }
+}
+
 @Composable
 private fun TranslationSheet(
     state: TranslationState,
@@ -563,7 +595,7 @@ private fun TranslationSheet(
                 fontWeight = FontWeight.Bold
             )
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, "Close")
+                Icon(Icons.Default.Close, contentDescription = "关闭")
             }
         }
         

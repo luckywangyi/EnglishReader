@@ -24,8 +24,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
@@ -41,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -66,12 +69,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import com.englishreader.R
 import com.englishreader.domain.model.Article
 import com.englishreader.domain.model.Category
 import com.englishreader.domain.model.DifficultyLevel
 import com.englishreader.ui.components.DifficultyBadge
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.englishreader.ui.theme.GlassBackground
+import com.englishreader.ui.theme.GlassBackgroundDark
 import com.englishreader.ui.theme.GlassShadow
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -91,6 +99,7 @@ fun HomeScreen(
     val showOnlyUnread by viewModel.showOnlyUnread.collectAsState()
     val recommendedArticle by viewModel.recommendedArticle.collectAsState()
     val isLoadingRecommendation by viewModel.isLoadingRecommendation.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
     var showFilterSheet by remember { mutableStateOf(false) }
@@ -139,6 +148,28 @@ fun HomeScreen(
                             onRefreshClick = { viewModel.refreshArticles() },
                             isRefreshing = isRefreshing,
                             modifier = Modifier.statusBarsPadding()
+                        )
+                    }
+                    
+                    // 搜索栏
+                    item(key = "search") {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.setSearchQuery(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("搜索文章标题、描述...") },
+                            leadingIcon = { 
+                                Icon(Icons.Default.Search, contentDescription = null) 
+                            },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                        Icon(Icons.Default.Close, contentDescription = "清除搜索")
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp)
                         )
                     }
                     
@@ -260,20 +291,25 @@ private fun GlassRecommendationCard(
     onArticleClick: () -> Unit,
     onRefreshClick: () -> Unit
 ) {
+    val isDark = isSystemInDarkTheme()
+    val cardBackground = if (isDark) GlassBackgroundDark else GlassBackground
+    val cardBorderAlpha = if (isDark) 0.15f else 0.5f
+    val shadowColor = if (isDark) Color.Transparent else GlassShadow
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 16.dp,
+                elevation = if (isDark) 0.dp else 16.dp,
                 shape = RoundedCornerShape(24.dp),
-                ambientColor = GlassShadow,
-                spotColor = GlassShadow
+                ambientColor = shadowColor,
+                spotColor = shadowColor
             ),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = GlassBackground
+            containerColor = cardBackground
         ),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, Color.White.copy(alpha = cardBorderAlpha))
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             // Header Row
@@ -328,8 +364,13 @@ private fun GlassRecommendationCard(
                     // Article Image
                     article.imageUrl?.let { imageUrl ->
                         AsyncImage(
-                            model = imageUrl,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(imageUrl)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = null,
+                            placeholder = painterResource(R.drawable.ic_launcher_foreground),
+                            error = painterResource(R.drawable.ic_launcher_foreground),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(180.dp)
@@ -378,7 +419,7 @@ private fun GlassRecommendationCard(
                             DifficultyBadge(level = level)
                         }
                         Text(
-                            text = "${article.wordCount} words",
+                            text = "${article.wordCount} 词",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -463,21 +504,26 @@ private fun GlassArticleCard(
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit
 ) {
+    val isDark = isSystemInDarkTheme()
+    val cardBackground = if (isDark) GlassBackgroundDark else GlassBackground
+    val cardBorderAlpha = if (isDark) 0.1f else 0.4f
+    val shadowColor = if (isDark) Color.Transparent else GlassShadow
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 8.dp,
+                elevation = if (isDark) 0.dp else 8.dp,
                 shape = RoundedCornerShape(20.dp),
-                ambientColor = GlassShadow,
-                spotColor = GlassShadow
+                ambientColor = shadowColor,
+                spotColor = shadowColor
             )
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = GlassBackground
+            containerColor = cardBackground
         ),
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.4f))
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = cardBorderAlpha))
     ) {
         Row(
             modifier = Modifier
@@ -489,8 +535,13 @@ private fun GlassArticleCard(
             // Thumbnail
             article.imageUrl?.let { imageUrl ->
                 AsyncImage(
-                    model = imageUrl,
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
+                    placeholder = painterResource(R.drawable.ic_launcher_foreground),
+                    error = painterResource(R.drawable.ic_launcher_foreground),
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(12.dp)),
@@ -555,7 +606,7 @@ private fun GlassArticleCard(
                         Icons.Filled.Favorite 
                     else 
                         Icons.Outlined.FavoriteBorder,
-                    contentDescription = "Favorite",
+                    contentDescription = "收藏",
                     tint = if (article.isFavorite) 
                         MaterialTheme.colorScheme.error 
                     else 
@@ -605,7 +656,7 @@ private fun FilterSection(
             GlassFilterChip(
                 selected = selectedCategory == null,
                 onClick = { onCategorySelected(null) },
-                label = "All"
+                label = "全部"
             )
             categories.forEach { category ->
                 GlassFilterChip(
@@ -693,7 +744,7 @@ private fun GlassFilterChip(
         },
         shape = RoundedCornerShape(12.dp),
         colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
             selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             selectedLabelColor = MaterialTheme.colorScheme.primary
@@ -729,7 +780,7 @@ private fun EmptyState() {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Pull down to refresh",
+                text = "下拉刷新获取文章",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -746,9 +797,9 @@ private fun formatDate(timestamp: Long): String {
     val diff = now - timestamp
     
     return when {
-        diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}m ago"
-        diff < 24 * 60 * 60 * 1000 -> "${diff / (60 * 60 * 1000)}h ago"
-        diff < 7 * 24 * 60 * 60 * 1000 -> "${diff / (24 * 60 * 60 * 1000)}d ago"
-        else -> SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date(timestamp))
+        diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}分钟前"
+        diff < 24 * 60 * 60 * 1000 -> "${diff / (60 * 60 * 1000)}小时前"
+        diff < 7 * 24 * 60 * 60 * 1000 -> "${diff / (24 * 60 * 60 * 1000)}天前"
+        else -> SimpleDateFormat("MM月dd日", Locale.getDefault()).format(Date(timestamp))
     }
 }

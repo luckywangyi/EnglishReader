@@ -1,10 +1,18 @@
 package com.englishreader.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
 
-@Entity(tableName = "vocabulary")
+@Entity(
+    tableName = "vocabulary",
+    indices = [
+        Index(value = ["word"]),
+        Index(value = ["articleId"]),
+        Index(value = ["isMastered", "nextReviewAt"])
+    ]
+)
 data class VocabularyEntity(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),

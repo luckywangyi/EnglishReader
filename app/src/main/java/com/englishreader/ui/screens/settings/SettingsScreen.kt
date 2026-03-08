@@ -95,7 +95,7 @@ fun SettingsScreen(
             // API Key Section
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -132,7 +132,7 @@ fun SettingsScreen(
                                 Icon(
                                     if (showApiKey) Icons.Default.VisibilityOff 
                                     else Icons.Default.Visibility,
-                                    contentDescription = if (showApiKey) "Hide" else "Show"
+                                    contentDescription = if (showApiKey) "隐藏" else "显示"
                                 )
                             }
                         },
@@ -225,7 +225,7 @@ fun SettingsScreen(
             // How to get API Key
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -295,7 +295,7 @@ fun SettingsScreen(
             Card(
                 onClick = onNavigateToRssManage,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Row(
@@ -345,7 +345,7 @@ fun SettingsScreen(
             // Dark Mode
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Row(
@@ -385,7 +385,7 @@ fun SettingsScreen(
             // Reading Font Size
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Column(
@@ -423,7 +423,7 @@ fun SettingsScreen(
                     
                     // Preview
                     Text(
-                        text = "This is a sample text for preview.",
+                        text = "这是预览文本 The quick brown fox.",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontSize = readingFontSize.sp
                         ),
@@ -443,7 +443,7 @@ fun SettingsScreen(
             
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -542,7 +542,7 @@ fun SettingsScreen(
             
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Column(

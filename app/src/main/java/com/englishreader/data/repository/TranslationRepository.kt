@@ -17,6 +17,7 @@ class TranslationRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val aiService: AiService
 ) {
+    @Volatile
     private var dictDatabase: SQLiteDatabase? = null
     
     /**
@@ -102,35 +103,36 @@ class TranslationRepository @Inject constructor(
     }
     
     private fun getDictDatabase(): SQLiteDatabase? {
-        if (dictDatabase != null) return dictDatabase
+        dictDatabase?.let { return it }
         
-        try {
-            // Check if dictionary exists in assets
-            val dbFile = File(context.filesDir, "ecdict.db")
+        return synchronized(this) {
+            dictDatabase?.let { return it }
             
-            if (!dbFile.exists()) {
-                // Copy from assets if available
-                try {
-                    context.assets.open("ecdict.db").use { input ->
-                        FileOutputStream(dbFile).use { output ->
-                            input.copyTo(output)
+            try {
+                val dbFile = File(context.filesDir, "ecdict.db")
+                
+                if (!dbFile.exists()) {
+                    try {
+                        context.assets.open("ecdict.db").use { input ->
+                            FileOutputStream(dbFile).use { output ->
+                                input.copyTo(output)
+                            }
                         }
+                    } catch (e: Exception) {
+                        return null
                     }
-                } catch (e: Exception) {
-                    // Dictionary not bundled, AI-only mode
-                    return null
                 }
+                
+                val db = SQLiteDatabase.openDatabase(
+                    dbFile.absolutePath,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY
+                )
+                dictDatabase = db
+                db
+            } catch (e: Exception) {
+                null
             }
-            
-            dictDatabase = SQLiteDatabase.openDatabase(
-                dbFile.absolutePath,
-                null,
-                SQLiteDatabase.OPEN_READONLY
-            )
-            
-            return dictDatabase
-        } catch (e: Exception) {
-            return null
         }
     }
     

@@ -116,6 +116,10 @@ class NotesViewModel @Inject constructor(
     private val _dueReviewCount = MutableStateFlow(0)
     val dueReviewCount: StateFlow<Int> = _dueReviewCount.asStateFlow()
     
+    // 加载状态
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    
     init {
         loadStats()
     }
@@ -134,6 +138,8 @@ class NotesViewModel @Inject constructor(
             
             // 需要复习的词汇数量
             _dueReviewCount.value = vocabularyRepository.getDueReviewCount()
+            
+            _isLoading.value = false
         }
     }
     

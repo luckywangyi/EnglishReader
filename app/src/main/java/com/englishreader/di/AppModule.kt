@@ -13,6 +13,7 @@ import com.englishreader.data.local.dao.VocabularyDao
 import com.englishreader.data.remote.ai.AiService
 import com.englishreader.data.remote.rss.RssService
 import com.englishreader.data.repository.ArticleRepository
+import com.englishreader.data.repository.ReadingStatsRepository
 import com.englishreader.data.repository.SentenceRepository
 import com.englishreader.data.repository.SettingsRepository
 import com.englishreader.data.repository.TranslationRepository
@@ -70,7 +71,8 @@ object AppModule {
             .addMigrations(
                 AppDatabase.MIGRATION_1_2,
                 AppDatabase.MIGRATION_2_3,
-                AppDatabase.MIGRATION_3_4
+                AppDatabase.MIGRATION_3_4,
+                AppDatabase.MIGRATION_4_5
             )
             .fallbackToDestructiveMigration()  // 备用：如果迁移失败则重建数据库
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)  // 更稳定的日志模式
@@ -161,6 +163,14 @@ object AppModule {
         sentenceDao: SentenceDao
     ): SentenceRepository {
         return SentenceRepository(sentenceDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideReadingStatsRepository(
+        readingStatsDao: ReadingStatsDao
+    ): ReadingStatsRepository {
+        return ReadingStatsRepository(readingStatsDao)
     }
 
     @Provides

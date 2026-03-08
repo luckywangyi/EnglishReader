@@ -49,25 +49,31 @@ class HomeViewModel @Inject constructor(
     private val _showOnlyUnread = MutableStateFlow(false)
     val showOnlyUnread: StateFlow<Boolean> = _showOnlyUnread.asStateFlow()
     
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    
     val sources: List<RssSource> = RssSources.sources
     val categories: List<Category> = Category.entries
     
-    // Filtered articles based on selections
+    // Filtered articles based on selections and search
     val articles: StateFlow<List<Article>> = combine(
         articleRepository.getAllArticles(),
         _selectedCategory,
-        _selectedSource,
         _selectedDifficulty,
-        _showOnlyUnread
-    ) { articles, category, source, difficulty, unreadOnly ->
+        _showOnlyUnread,
+        _searchQuery
+    ) { articles, category, difficulty, unreadOnly, query ->
         articles.filter { article ->
             val matchesCategory = category == null || 
                 RssSources.getSourceById(article.sourceId)?.category == category
-            val matchesSource = source == null || article.sourceId == source.id
             val matchesDifficulty = difficulty == null || article.difficultyLevel?.level == difficulty
             val matchesUnread = !unreadOnly || !article.isRead
+            val matchesSearch = query.isBlank() || 
+                article.title.contains(query, ignoreCase = true) ||
+                (article.description?.contains(query, ignoreCase = true) == true) ||
+                article.sourceName.contains(query, ignoreCase = true)
             
-            matchesCategory && matchesSource && matchesDifficulty && matchesUnread
+            matchesCategory && matchesDifficulty && matchesUnread && matchesSearch
         }
     }.stateIn(
         scope = viewModelScope,
@@ -79,6 +85,9 @@ class HomeViewModel @Inject constructor(
         // 缓存优先策略：先立即显示本地缓存的文章
         // 只在数据库为空时才自动触发网络刷新
         viewModelScope.launch {
+            // 自动清理 30 天前的过期文章（不清理收藏文章）
+            articleRepository.cleanupOldArticles()
+            
             val articleCount = articleRepository.getArticleCount()
             if (articleCount == 0) {
                 // 数据库为空，需要从网络获取
@@ -116,7 +125,7 @@ class HomeViewModel @Inject constructor(
                     // Success - articles are automatically updated via Flow
                 },
                 onFailure = { e ->
-                    _error.value = e.message ?: "Failed to refresh articles"
+                    _error.value = e.message ?: "刷新文章失败，请检查网络连接"
                 }
             )
             
@@ -141,11 +150,16 @@ class HomeViewModel @Inject constructor(
         _showOnlyUnread.value = !_showOnlyUnread.value
     }
     
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+    
     fun clearFilters() {
         _selectedCategory.value = null
         _selectedSource.value = null
         _selectedDifficulty.value = null
         _showOnlyUnread.value = false
+        _searchQuery.value = ""
     }
     
     fun toggleFavorite(article: Article) {

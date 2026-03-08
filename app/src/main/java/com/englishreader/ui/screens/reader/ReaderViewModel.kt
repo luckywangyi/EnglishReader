@@ -235,14 +235,19 @@ class ReaderViewModel @Inject constructor(
     
     override fun onCleared() {
         super.onCleared()
-        // 在 ViewModel 销毁时尝试保存阅读时长
+        // 在 ViewModel 销毁时保存阅读时长
         if (readingStartTime > 0) {
             val readingTimeMs = System.currentTimeMillis() - readingStartTime
             val readingTimeMinutes = (readingTimeMs / 60000).toInt()
             if (readingTimeMinutes >= 1) {
-                // 使用非阻塞方式保存
-                kotlinx.coroutines.GlobalScope.launch {
-                    articleRepository.recordReadingTime(readingTimeMinutes)
+                try {
+                    kotlinx.coroutines.runBlocking {
+                        kotlinx.coroutines.withTimeout(3000L) {
+                            articleRepository.recordReadingTime(readingTimeMinutes)
+                        }
+                    }
+                } catch (e: Exception) {
+                    // 超时或其他错误，忽略
                 }
             }
         }

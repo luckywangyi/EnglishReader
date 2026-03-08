@@ -16,11 +16,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.englishreader.ui.components.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +51,7 @@ fun StatsScreen(
 ) {
     val overallStats by viewModel.overallStats.collectAsState()
     val weeklyData by viewModel.weeklyData.collectAsState()
+    val isLoaded = overallStats.isLoaded
     
     Scaffold(
         topBar = {
@@ -55,12 +59,18 @@ fun StatsScreen(
                 title = { Text("学习统计") },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
                     }
                 }
             )
         }
     ) { padding ->
+        if (!isLoaded) {
+            LoadingState(
+                modifier = Modifier.padding(padding),
+                message = "加载统计数据..."
+            )
+        } else {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -122,6 +132,30 @@ fun StatsScreen(
                 }
             }
             
+            // 阅读时长卡片
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Timer,
+                        title = "累计阅读",
+                        value = formatTimeSpent(overallStats.totalTimeSpentMinutes),
+                        subtitle = if (overallStats.totalTimeSpentMinutes >= 60) "小时" else "分钟"
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.AccessTime,
+                        title = "今日阅读",
+                        value = formatTimeSpent(weeklyData.lastOrNull()?.timeSpentMinutes ?: 0),
+                        subtitle = if ((weeklyData.lastOrNull()?.timeSpentMinutes ?: 0) >= 60) "小时" else "分钟",
+                        isHighlighted = (weeklyData.lastOrNull()?.timeSpentMinutes ?: 0) > 0
+                    )
+                }
+            }
+            
             // Weekly chart
             item {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -143,7 +177,7 @@ fun StatsScreen(
                 
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -161,6 +195,7 @@ fun StatsScreen(
                 }
             }
         }
+        } // end if isLoaded
     }
 }
 
@@ -179,7 +214,7 @@ private fun StatCard(
             containerColor = if (isHighlighted)
                 MaterialTheme.colorScheme.primaryContainer
             else
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
@@ -235,7 +270,7 @@ private fun StatCard(
 private fun WeeklyChart(weeklyData: List<DailyStats>) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
@@ -307,6 +342,13 @@ private fun DayBar(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+private fun formatTimeSpent(minutes: Int): String {
+    return when {
+        minutes >= 60 -> String.format("%.1f", minutes / 60f)
+        else -> minutes.toString()
     }
 }
 

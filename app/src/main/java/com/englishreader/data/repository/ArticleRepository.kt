@@ -23,7 +23,6 @@ import javax.inject.Singleton
 enum class FullContentFetchResult {
     UPDATED,
     SKIPPED,
-    TOO_SHORT,
     FAILED
 }
 
@@ -37,7 +36,7 @@ class ArticleRepository @Inject constructor(
     private val customRssSourceDao: CustomRssSourceDao
 ) {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    private val minWordCount = 500
+    private val fetchAttemptedIds = mutableSetOf<String>()
     fun getAllArticles(): Flow<List<Article>> {
         return articleDao.getAllArticles().map { list ->
             list.map { Article.fromEntity(it) }
@@ -83,17 +82,14 @@ class ArticleRepository @Inject constructor(
             val entity = articleDao.getArticleById(articleId) ?: return FullContentFetchResult.SKIPPED
             if (!shouldFetchFullContent(entity)) return FullContentFetchResult.SKIPPED
 
+            fetchAttemptedIds.add(articleId)
+
             val result = htmlParser.fetchArticleContent(entity.originalUrl)
             val content = result.getOrNull()?.content?.trim().orEmpty()
             val wordCount = content.split(Regex("\\s+")).size
 
             if (content.isBlank() || content.length <= entity.content.length) {
                 return FullContentFetchResult.SKIPPED
-            }
-            
-            if (wordCount < minWordCount) {
-                articleDao.deleteArticleById(entity.id)
-                return FullContentFetchResult.TOO_SHORT
             }
 
             val description = entity.description ?: createExcerpt(content)
@@ -110,6 +106,7 @@ class ArticleRepository @Inject constructor(
 
             FullContentFetchResult.UPDATED
         } catch (e: Exception) {
+            fetchAttemptedIds.add(articleId)
             FullContentFetchResult.FAILED
         }
     }
@@ -263,22 +260,33 @@ class ArticleRepository @Inject constructor(
     
     suspend fun getTotalWordsRead(): Int = articleDao.getTotalWordsRead() ?: 0
     
+    /**
+     * 清理过期文章（保留 30 天内的文章，收藏文章不清理）
+     */
+    suspend fun cleanupOldArticles(retentionDays: Int = 30) {
+        try {
+            val cutoffTimestamp = System.currentTimeMillis() - (retentionDays * 24 * 60 * 60 * 1000L)
+            articleDao.deleteOldUnfavoritedArticles(cutoffTimestamp)
+        } catch (e: Exception) {
+            // 清理失败不影响正常使用
+        }
+    }
+    
     fun getSources(): List<RssSource> = RssSources.sources
     
     fun getSourcesByCategory(category: Category): List<RssSource> = 
         RssSources.getSourcesByCategory(category)
     
     private fun shouldFetchFullContent(article: ArticleEntity): Boolean {
+        if (article.id in fetchAttemptedIds) return false
+
         val content = article.content.trim()
         if (content.isBlank()) return true
-        
+
         val wordCount = content.split(Regex("\\s+")).size
-        if (wordCount < 200 || content.length < 800) return true
-        
-        val lower = content.lowercase()
-        return lower.contains("continue reading") ||
-            lower.contains("read more") ||
-            lower.contains("continue on medium")
+        if (wordCount >= 200 && content.length >= 800) return false
+
+        return true
     }
     
     private fun createExcerpt(content: String): String {

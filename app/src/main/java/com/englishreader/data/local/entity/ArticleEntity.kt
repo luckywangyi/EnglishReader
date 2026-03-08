@@ -1,9 +1,19 @@
 package com.englishreader.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "articles")
+@Entity(
+    tableName = "articles",
+    indices = [
+        Index(value = ["sourceId"]),
+        Index(value = ["publishedAt"]),
+        Index(value = ["isRead"]),
+        Index(value = ["isFavorite"]),
+        Index(value = ["difficultyLevel"])
+    ]
+)
 data class ArticleEntity(
     @PrimaryKey
     val id: String,

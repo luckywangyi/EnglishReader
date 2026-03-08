@@ -86,6 +86,9 @@ interface ArticleDao {
     @Query("DELETE FROM articles WHERE fetchedAt < :timestamp")
     suspend fun deleteOldArticles(timestamp: Long)
     
+    @Query("DELETE FROM articles WHERE fetchedAt < :timestamp AND isFavorite = 0")
+    suspend fun deleteOldUnfavoritedArticles(timestamp: Long)
+    
     @Query("SELECT EXISTS(SELECT 1 FROM articles WHERE originalUrl = :url)")
     suspend fun articleExists(url: String): Boolean
 }

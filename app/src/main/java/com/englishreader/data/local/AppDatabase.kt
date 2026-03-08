@@ -23,7 +23,7 @@ import com.englishreader.data.local.entity.VocabularyEntity
         SentenceEntity::class,
         CustomRssSourceEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +76,28 @@ abstract class AppDatabase : RoomDatabase() {
                 addColumnIfNotExists(db, "articles", "isDownloaded", "INTEGER NOT NULL DEFAULT 0")
                 addColumnIfNotExists(db, "articles", "localImagePath", "TEXT")
                 addColumnIfNotExists(db, "articles", "downloadedAt", "INTEGER")
+            }
+        }
+        
+        // 数据库迁移：版本 4 -> 5
+        // 为常用查询字段添加索引，提升查询性能
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // articles 表索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_sourceId ON articles(sourceId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_publishedAt ON articles(publishedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_isRead ON articles(isRead)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_isFavorite ON articles(isFavorite)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_difficultyLevel ON articles(difficultyLevel)")
+                
+                // vocabulary 表索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_word ON vocabulary(word)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_articleId ON vocabulary(articleId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_isMastered_nextReviewAt ON vocabulary(isMastered, nextReviewAt)")
+                
+                // sentences 表索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_sentences_articleId ON sentences(articleId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_sentences_isFavorite ON sentences(isFavorite)")
             }
         }
         
